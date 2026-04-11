@@ -1,4 +1,5 @@
 import type { StageGrade } from "@crucible/shared";
+import { StreamingText } from "../streaming/StreamingText";
 
 function scoreRows(grade: StageGrade): { label: string; value: number }[] {
   if (grade.stage === "assumption") {
@@ -54,7 +55,9 @@ export function GradeDisplay({ grade }: { grade: StageGrade }) {
         </ul>
       ) : null}
       {grade.feedback ? (
-        <p className="mt-2 border-t border-stone-700/60 pt-2 text-stone-400">{grade.feedback}</p>
+        <div className="mt-2 border-t border-stone-700/60 pt-2 text-stone-400">
+          <StreamingText text={grade.feedback} />
+        </div>
       ) : null}
     </div>
   );

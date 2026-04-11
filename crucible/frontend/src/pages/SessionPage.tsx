@@ -1,16 +1,25 @@
 import { AlertCircle, ArrowLeft, Ban, Radio, WifiOff } from "lucide-react";
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { AssumptionStage } from "../components/stages/AssumptionStage";
 import { FramingStage } from "../components/stages/FramingStage";
 import { SteelmanStage } from "../components/stages/SteelmanStage";
 import { SynthesisStage } from "../components/stages/SynthesisStage";
 import { useDecisionSession } from "../hooks/useDecisionSession";
 import { useSessionStore } from "../stores/sessionStore";
+import { readStoredDecisionPrompt } from "../utils/decisionPromptStorage";
 
 export function SessionPage() {
   const { id } = useParams<{ id: string }>();
   const sessionId = id ?? undefined;
+  const location = useLocation();
+
+  const decisionPrompt = useMemo(() => {
+    if (!sessionId) return null;
+    const fromState = (location.state as { decisionText?: string } | null)?.decisionText?.trim();
+    if (fromState) return fromState;
+    return readStoredDecisionPrompt(sessionId)?.trim() ?? null;
+  }, [sessionId, location.state]);
 
   const {
     stageProgress,
@@ -116,6 +125,15 @@ export function SessionPage() {
           ) : null}
         </div>
       </div>
+
+      {decisionPrompt ? (
+        <div className="mb-6 rounded-xl border border-stone-800 bg-stone-900/50 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Your decision</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-stone-100">
+            <strong className="font-semibold">{decisionPrompt}</strong>
+          </p>
+        </div>
+      ) : null}
 
       {connectionError ? (
         <p className="mb-4 flex items-center gap-2 text-sm text-rose-400">

@@ -1,4 +1,5 @@
 import type { LoopIterationView } from "../../stores/sessionStore";
+import { StreamingText } from "../streaming/StreamingText";
 import { GradeDisplay } from "./GradeDisplay";
 
 interface LoopIterationCardProps {
@@ -26,9 +27,9 @@ export function LoopIterationCard({ row, stageLabel }: LoopIterationCardProps) {
           <summary className="cursor-pointer text-xs text-amber-600/90 hover:text-amber-500">
             View output snapshot
           </summary>
-          <pre className="mt-2 max-h-40 overflow-auto rounded border border-stone-800 bg-stone-950/80 p-2 font-mono text-[11px] text-stone-400 whitespace-pre-wrap">
-            {row.result.text}
-          </pre>
+          <div className="mt-2 max-h-40 overflow-auto rounded border border-stone-800 bg-stone-950/80 p-2 text-[13px]">
+            <StreamingText text={row.result.text} />
+          </div>
         </details>
       ) : null}
     </div>

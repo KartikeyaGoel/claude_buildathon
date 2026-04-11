@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createSession } from "../api/crucibleApi";
+import { writeStoredDecisionPrompt } from "../utils/decisionPromptStorage";
 
 export function HomePage() {
   const [text, setText] = useState("");
@@ -19,7 +20,10 @@ export function HomePage() {
     setLoading(true);
     try {
       const { sessionId } = await createSession({ decisionText });
-      navigate(`/session/${encodeURIComponent(sessionId)}`);
+      writeStoredDecisionPrompt(sessionId, decisionText);
+      navigate(`/session/${encodeURIComponent(sessionId)}`, {
+        state: { decisionText },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start session");
     } finally {

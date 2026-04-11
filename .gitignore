@@ -1,1 +1,6 @@
 node_modules
+
+# Secrets — never commit (use .env.example as template)
+.env
+.env.*
+!.env.example
