@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-crucible-950: #0c0a09;
+  --color-crucible-900: #1c1917;
+  --color-crucible-800: #292524;
+  --color-crucible-700: #44403c;
+  --color-crucible-accent: #f59e0b;
+  --color-crucible-accent-dim: #d97706;
+  --color-crucible-muted: #a8a29e;
+}
+
+body {
+  @apply bg-crucible-950 text-stone-100 font-sans min-h-screen;
+}

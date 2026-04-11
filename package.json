@@ -1,0 +1,12 @@
+{
+  "name": "claude-buildathon",
+  "private": true,
+  "workspaces": [
+    "crucible/shared",
+    "crucible/backend",
+    "crucible/frontend"
+  ],
+  "scripts": {
+    "test": "npm run test -w crucible-backend"
+  }
+}

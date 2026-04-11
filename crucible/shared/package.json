@@ -1,0 +1,21 @@
+{
+  "name": "@crucible/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./stub.js",
+  "types": "./dist/types.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.ts",
+      "import": "./stub.js",
+      "default": "./stub.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
