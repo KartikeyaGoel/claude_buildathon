@@ -51,10 +51,3 @@ export async function cancelSession(sessionId: string): Promise<void> {
 export function getSessionStreamPath(sessionId: string): string {
   return `/api/sessions/${encodeURIComponent(sessionId)}/stream`;
 }
-
-export function getSessionStreamAbsoluteUrl(sessionId: string): string {
-  const path = getSessionStreamPath(sessionId);
-  const base = getApiBase();
-  if (!base) return path;
-  return `${base}${path}`;
-}

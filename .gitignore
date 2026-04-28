@@ -1,4 +1,7 @@
 node_modules
+crucible/backend/dist/
+crucible/frontend/dist/
+*.tsbuildinfo
 
 # Secrets — never commit (use .env.example as template)
 .env

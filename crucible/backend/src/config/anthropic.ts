@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { Message } from "@anthropic-ai/sdk/resources/messages";
 import { env } from "./env.js";
 
 export const anthropic = new Anthropic({
@@ -83,4 +84,11 @@ export async function withRetries<T>(
     }
   }
   throw lastErr;
+}
+
+export function messageTextContent(msg: Message): string {
+  return msg.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("");
 }

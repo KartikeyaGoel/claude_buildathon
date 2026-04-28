@@ -1,6 +1,6 @@
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { FRAMING_SYSTEM_PROMPT } from "../../prompts/framing.prompt.js";
-import { streamAgentCompletion } from "./BaseAgent.js";
+import { streamAgentCompletion } from "./streamCompletion.js";
 
 export async function runFramingInitial(params: {
   decisionText: string;

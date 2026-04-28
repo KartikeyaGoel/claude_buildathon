@@ -1,20 +1,18 @@
 import type { ConfirmFramingBody, StageGrade } from "@crucible/shared";
 import { runFramingInitial, runFramingRevision } from "../agents/FramingAgent.js";
-import { runAssumptionIteration } from "../agents/AssumptionAgent.js";
-import { runSteelmanIteration } from "../agents/SteelmanAgent.js";
-import { runSynthesisIteration } from "../agents/SynthesisAgent.js";
+import {
+  runAssumptionIteration,
+  runSteelmanIteration,
+  runSynthesisIteration,
+} from "../agents/loopIterations.js";
 import {
   gradeAssumptionOutput,
-  sumAssumptionScores,
-} from "../agents/grading/AssumptionGrader.js";
-import {
   gradeSteelmanOutput,
-  sumSteelmanScores,
-} from "../agents/grading/SteelmanGrader.js";
-import {
   gradeSynthesisOutput,
+  sumAssumptionScores,
+  sumSteelmanScores,
   sumSynthesisScores,
-} from "../agents/grading/SynthesisGrader.js";
+} from "../agents/grading/stageGraders.js";
 import type { CrucibleSession } from "../CrucibleSession.js";
 import { LoopController } from "./LoopController.js";
 

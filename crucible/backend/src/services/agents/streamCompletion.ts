@@ -1,5 +1,5 @@
 import type { PipelineStage } from "@crucible/shared";
-import type { Message, MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { env } from "../../config/env.js";
 import { anthropic, withRetries } from "../../config/anthropic.js";
 import { anySignal, timeoutSignal } from "../../utils/abort.js";
@@ -51,11 +51,4 @@ export async function streamAgentCompletion(
     throw new Error("Anthropic call timed out after 120s");
   }
   return full;
-}
-
-export function messageTextContent(msg: Message): string {
-  return msg.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 }
