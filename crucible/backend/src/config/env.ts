@@ -14,6 +14,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   FRONTEND_URL: z.string().url().default("http://localhost:5173"),
   PUBLIC_API_URL: z.string().url().default("http://localhost:3001"),
+  /** Extra Host header values allowed for Streamable HTTP MCP (comma-separated), e.g. custom domain */
+  MCP_ALLOWED_HOSTS: z.string().default(""),
   MODEL_ID: z.string().min(1).default("claude-sonnet-4-20250514"),
   ANTHROPIC_MODEL: z.string().min(1).default("claude-sonnet-4-20250514"),
   ANTHROPIC_GATE_MODEL: z.string().min(1).default("claude-3-5-haiku-latest"),
@@ -33,6 +35,12 @@ const envSchema = z.object({
   GCP_PROJECT_ID: z.string().default(""),
   GCP_REGION: z.string().default("us-central1"),
   GCP_CLOUD_SQL_INSTANCE: z.string().default(""),
+  /**
+   * all — local dev: REST + MCP in one process.
+   * api — Cloud Run service: /v1 + legacy UI only.
+   * mcp — Cloud Run service: /mcp only (single instance for Streamable HTTP sessions).
+   */
+  CRUCIBLE_SERVICE_ROLE: z.enum(["all", "api", "mcp"]).default("all"),
 });
 
 function readMaxLoopIterations(): number {

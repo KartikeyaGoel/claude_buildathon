@@ -12,7 +12,7 @@ gcloud billing budgets create \
   --threshold-rule=percent=1.0,basis=current-spend
 ```
 
-Recommended Cloud Monitoring alerts:
+Recommended Cloud Monitoring alerts (create filters for both **`crucible-api`** and **`crucible-mcp`**):
 
 - Cloud Run `run.googleapis.com/request_count` with 5xx ratio > 2% over 5 minutes.
 - Cloud Run `run.googleapis.com/container/cpu/utilizations` > 80% over 10 minutes.

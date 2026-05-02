@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { userFromMcpEnv } from "../auth.js";
+import { getMcpActingUser } from "../authContext.js";
 import { formatInterrogation } from "../formatters.js";
 import { runInterrogation } from "../../services/engine/runInterrogation.js";
 
@@ -16,7 +16,7 @@ export async function interrogateTool(args: {
   context?: string;
   originating_model?: "claude" | "gpt4o" | "gemini" | "perplexity" | "mistral" | "other";
 }) {
-  const user = await userFromMcpEnv();
+  const user = await getMcpActingUser();
   const content = args.context
     ? `${args.content}\n\nContext:\n${args.context}`
     : args.content;

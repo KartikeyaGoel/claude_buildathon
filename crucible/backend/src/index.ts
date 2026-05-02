@@ -19,6 +19,11 @@ import { registerOutcomeRoutes } from "./routes/v1/outcome.js";
 import { registerStatsRoutes } from "./routes/v1/stats.js";
 import { registerUserRoutes } from "./routes/v1/users.js";
 import { registerWebhookRoutes } from "./routes/v1/webhooks.js";
+import { registerMcpStreamableHttp } from "./mcp/httpRoutes.js";
+
+const role = env.CRUCIBLE_SERVICE_ROLE;
+const serveApi = role === "all" || role === "api";
+const serveMcp = role === "all" || role === "mcp";
 
 const app = Fastify({
   bodyLimit: 1_048_576,
@@ -36,30 +41,69 @@ const app = Fastify({
   },
 });
 
-const store = new SessionStore();
-store.startCleanupInterval();
-
-const orchestrator = new PipelineOrchestrator(env.MAX_LOOP_ITERATIONS);
-
 registerProblemDetails(app);
 registerRequestId(app);
 
-await app.register(cors, { origin: env.FRONTEND_URL });
-await app.register(helmet);
+await app.register(cors, {
+  origin: (origin, cb) => {
+    if (env.NODE_ENV !== "production") {
+      cb(null, true);
+      return;
+    }
+    if (!origin) {
+      cb(null, true);
+      return;
+    }
+    try {
+      cb(null, new URL(env.FRONTEND_URL).origin === origin);
+    } catch {
+      cb(null, false);
+    }
+  },
+  exposedHeaders: [
+    "WWW-Authenticate",
+    "Mcp-Session-Id",
+    "Last-Event-ID",
+    "Mcp-Protocol-Version",
+  ],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Mcp-Session-Id",
+    "Mcp-Protocol-Version",
+    "Accept",
+    "Last-Event-ID",
+  ],
+  methods: ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"],
+});
+await app.register(helmet, { contentSecurityPolicy: false });
 await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });
 await app.register(sensible);
-await registerLegacyRoutes(app, store, orchestrator);
-await app.register(registerHealthRoutes, { prefix: "/v1" });
-await app.register(registerUserRoutes, { prefix: "/v1" });
-await app.register(registerInterrogateRoutes, { prefix: "/v1" });
-await app.register(registerOutcomeRoutes, { prefix: "/v1" });
-await app.register(registerHistoryRoutes, { prefix: "/v1" });
-await app.register(registerStatsRoutes, { prefix: "/v1" });
-await app.register(registerDashboardRoutes, { prefix: "/v1" });
-await app.register(registerWebhookRoutes, { prefix: "/v1" });
-await app.register(registerCacheRoutes, { prefix: "/v1" });
 
-app.get("/api/health", async () => ({ status: "ok" }));
+if (serveMcp) {
+  await registerMcpStreamableHttp(app);
+}
+
+if (serveApi) {
+  const store = new SessionStore();
+  store.startCleanupInterval();
+  const orchestrator = new PipelineOrchestrator(env.MAX_LOOP_ITERATIONS);
+  await registerLegacyRoutes(app, store, orchestrator);
+  await app.register(registerHealthRoutes, { prefix: "/v1" });
+  await app.register(registerUserRoutes, { prefix: "/v1" });
+  await app.register(registerInterrogateRoutes, { prefix: "/v1" });
+  await app.register(registerOutcomeRoutes, { prefix: "/v1" });
+  await app.register(registerHistoryRoutes, { prefix: "/v1" });
+  await app.register(registerStatsRoutes, { prefix: "/v1" });
+  await app.register(registerDashboardRoutes, { prefix: "/v1" });
+  await app.register(registerWebhookRoutes, { prefix: "/v1" });
+  await app.register(registerCacheRoutes, { prefix: "/v1" });
+  app.get("/api/health", async () => ({ status: "ok" }));
+}
+
+if (role === "mcp") {
+  app.get("/health", async () => ({ status: "ok", role: "mcp" }));
+}
 
 const close = async () => {
   await app.close();

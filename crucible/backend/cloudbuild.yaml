@@ -1,8 +1,9 @@
 substitutions:
   _REGION: us-central1
-  _SERVICE: crucible-api
+  _SERVICE_API: crucible-api
+  _SERVICE_MCP: crucible-mcp
   _REPOSITORY: crucible
-  _IMAGE: ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA
+  _IMAGE: ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE_API}:$SHORT_SHA
   _CLOUD_SQL_INSTANCE: $PROJECT_ID:${_REGION}:crucible-postgres
   _VPC_CONNECTOR: crucible-serverless
 
@@ -38,26 +39,55 @@ steps:
           --max-retries=1
         gcloud run jobs execute crucible-migrate --region="${_REGION}" --wait
 
-  - id: deploy-api
+  - id: deploy-services
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
       - -ceu
       - |
-        gcloud run deploy "${_SERVICE}" \
+        SECRETS=DATABASE_URL=DATABASE_URL:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,GOOGLE_GENERATIVE_AI_API_KEY=GOOGLE_GENERATIVE_AI_API_KEY:latest,PERPLEXITY_API_KEY=PERPLEXITY_API_KEY:latest,WEBHOOK_HMAC_SECRET=WEBHOOK_HMAC_SECRET:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest
+        BASE_ENV=NODE_ENV=production,GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=${_REGION},GCP_CLOUD_SQL_INSTANCE=${_CLOUD_SQL_INSTANCE}
+
+        gcloud run deploy "${_SERVICE_API}" \
           --image="${_IMAGE}" \
           --region="${_REGION}" \
           --platform=managed \
           --allow-unauthenticated \
-          --min-instances=1 \
-          --max-instances=10 \
+          --min-instances=0 \
+          --max-instances=20 \
           --memory=1Gi \
           --cpu=1 \
           --concurrency=80 \
           --set-cloudsql-instances="${_CLOUD_SQL_INSTANCE}" \
           --vpc-connector="${_VPC_CONNECTOR}" \
-          --set-env-vars=NODE_ENV=production,GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=${_REGION},GCP_CLOUD_SQL_INSTANCE=${_CLOUD_SQL_INSTANCE} \
-          --set-secrets=DATABASE_URL=DATABASE_URL:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,GOOGLE_GENERATIVE_AI_API_KEY=GOOGLE_GENERATIVE_AI_API_KEY:latest,PERPLEXITY_API_KEY=PERPLEXITY_API_KEY:latest,WEBHOOK_HMAC_SECRET=WEBHOOK_HMAC_SECRET:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest
+          --set-env-vars="${BASE_ENV},CRUCIBLE_SERVICE_ROLE=api" \
+          --set-secrets="${SECRETS}"
+
+        gcloud run deploy "${_SERVICE_MCP}" \
+          --image="${_IMAGE}" \
+          --region="${_REGION}" \
+          --platform=managed \
+          --allow-unauthenticated \
+          --min-instances=1 \
+          --max-instances=1 \
+          --memory=1Gi \
+          --cpu=1 \
+          --concurrency=40 \
+          --set-cloudsql-instances="${_CLOUD_SQL_INSTANCE}" \
+          --vpc-connector="${_VPC_CONNECTOR}" \
+          --set-env-vars="${BASE_ENV},CRUCIBLE_SERVICE_ROLE=mcp" \
+          --set-secrets="${SECRETS}"
+
+  - id: set-public-urls
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        API_URL=$(gcloud run services describe "${_SERVICE_API}" --region="${_REGION}" --format='value(status.url)')
+        MCP_URL=$(gcloud run services describe "${_SERVICE_MCP}" --region="${_REGION}" --format='value(status.url)')
+        gcloud run services update "${_SERVICE_API}" --region="${_REGION}" --update-env-vars="PUBLIC_API_URL=${API_URL}"
+        gcloud run services update "${_SERVICE_MCP}" --region="${_REGION}" --update-env-vars="PUBLIC_API_URL=${MCP_URL}"
 
 images:
   - ${_IMAGE}
