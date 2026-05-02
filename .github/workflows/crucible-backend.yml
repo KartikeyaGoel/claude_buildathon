@@ -1,0 +1,36 @@
+name: Crucible Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "crucible/backend/**"
+      - "crucible/shared/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/crucible-backend.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "crucible/backend/**"
+      - "crucible/shared/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/crucible-backend.yml"
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build -w @crucible/shared
+
+      - run: npm run ci -w crucible-backend

@@ -7,6 +7,8 @@
     "crucible/frontend"
   ],
   "scripts": {
-    "test": "npm run test -w crucible-backend"
+    "build": "npm run build -w @crucible/shared && npm run build -w crucible-backend",
+    "test": "npm run test -w crucible-backend",
+    "ci": "npm run build && npm run test && npm run security:sql -w crucible-backend"
   }
 }

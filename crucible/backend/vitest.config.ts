@@ -14,6 +14,7 @@ export default defineConfig({
     globals: false,
     env: {
       ANTHROPIC_API_KEY: "vitest-placeholder-key",
+      WEBHOOK_HMAC_SECRET: "vitest-webhook-secret",
     },
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.ts"],

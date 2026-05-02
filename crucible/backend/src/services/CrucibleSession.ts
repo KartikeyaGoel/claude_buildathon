@@ -1,4 +1,4 @@
-import type { Response } from "express";
+import type { ServerResponse } from "node:http";
 import { v4 as uuidv4 } from "uuid";
 import type { PipelineStage, SseEventName } from "@crucible/shared";
 import {
@@ -29,7 +29,7 @@ export class CrucibleSession {
   abortController: AbortController;
   private nextEventId = 0;
   private readonly eventBuffer: BufferedSseEvent[] = [];
-  private readonly subscribers = new Set<Response>();
+  private readonly subscribers = new Set<ServerResponse>();
   /** Serialized pipeline work (framing + post-confirm) */
   pipelineChain: Promise<void> = Promise.resolve();
 
@@ -67,7 +67,7 @@ export class CrucibleSession {
     }
   }
 
-  attachSse(res: Response, lastEventIdHeader: string | undefined): void {
+  attachSse(res: ServerResponse, lastEventIdHeader: string | undefined): void {
     this.touch();
     res.flushHeaders?.();
     for (const evt of replaySince(this.eventBuffer, lastEventIdHeader)) {
@@ -76,7 +76,7 @@ export class CrucibleSession {
     this.subscribers.add(res);
   }
 
-  detachSse(res: Response): void {
+  detachSse(res: ServerResponse): void {
     this.subscribers.delete(res);
   }
 

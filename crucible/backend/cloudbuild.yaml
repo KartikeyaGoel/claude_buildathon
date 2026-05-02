@@ -1,0 +1,63 @@
+substitutions:
+  _REGION: us-central1
+  _SERVICE: crucible-api
+  _REPOSITORY: crucible
+  _IMAGE: ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA
+  _CLOUD_SQL_INSTANCE: $PROJECT_ID:${_REGION}:crucible-postgres
+  _VPC_CONNECTOR: crucible-serverless
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - crucible/backend/Dockerfile
+      - -t
+      - ${_IMAGE}
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_IMAGE}"]
+
+  - id: migrate-job
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud run jobs deploy crucible-migrate \
+          --image="${_IMAGE}" \
+          --region="${_REGION}" \
+          --command=node \
+          --args=crucible/backend/dist/scripts/runMigrations.js \
+          --set-cloudsql-instances="${_CLOUD_SQL_INSTANCE}" \
+          --set-secrets=DATABASE_URL=DATABASE_URL:latest \
+          --vpc-connector="${_VPC_CONNECTOR}" \
+          --max-retries=1
+        gcloud run jobs execute crucible-migrate --region="${_REGION}" --wait
+
+  - id: deploy-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud run deploy "${_SERVICE}" \
+          --image="${_IMAGE}" \
+          --region="${_REGION}" \
+          --platform=managed \
+          --allow-unauthenticated \
+          --min-instances=1 \
+          --max-instances=10 \
+          --memory=1Gi \
+          --cpu=1 \
+          --concurrency=80 \
+          --set-cloudsql-instances="${_CLOUD_SQL_INSTANCE}" \
+          --vpc-connector="${_VPC_CONNECTOR}" \
+          --set-env-vars=NODE_ENV=production,GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=${_REGION},GCP_CLOUD_SQL_INSTANCE=${_CLOUD_SQL_INSTANCE} \
+          --set-secrets=DATABASE_URL=DATABASE_URL:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,GOOGLE_GENERATIVE_AI_API_KEY=GOOGLE_GENERATIVE_AI_API_KEY:latest,PERPLEXITY_API_KEY=PERPLEXITY_API_KEY:latest,WEBHOOK_HMAC_SECRET=WEBHOOK_HMAC_SECRET:latest,ADMIN_API_KEY=ADMIN_API_KEY:latest
+
+images:
+  - ${_IMAGE}

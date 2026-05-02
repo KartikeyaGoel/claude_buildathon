@@ -1,5 +1,5 @@
-import type { Response } from "express";
 import type { SseEventName } from "@crucible/shared";
+import type { ServerResponse } from "node:http";
 
 export interface BufferedSseEvent {
   id: number;
@@ -14,7 +14,7 @@ export function formatSseMessage(evt: BufferedSseEvent): string {
   return `id: ${evt.id}\nevent: ${evt.event}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
 
-export function writeSse(res: Response, evt: BufferedSseEvent): void {
+export function writeSse(res: Pick<ServerResponse, "write">, evt: BufferedSseEvent): void {
   res.write(formatSseMessage(evt));
 }
 
