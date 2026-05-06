@@ -52,6 +52,36 @@ export async function runGate(content: string, signal: AbortSignal): Promise<Gat
       reason: typeof parsed.reason === "string" ? parsed.reason : "gate_no_reason",
     };
   } catch {
+    // Some providers sometimes wrap JSON in extra text or code fences.
+    // Best-effort extraction so the gate doesn't hard-fail the whole pipeline.
+    const raw = result.text.trim();
+    const jsonCandidate = raw.match(/\{[\s\S]*\}/);
+    if (jsonCandidate) {
+      try {
+        const parsed = JSON.parse(jsonCandidate[0]) as { pass?: unknown; reason?: unknown };
+        const stage2Passed = parsed.pass === true;
+        return {
+          passed: stage2Passed,
+          stage1Passed: true,
+          stage2Passed,
+          reason: typeof parsed.reason === "string" ? parsed.reason : "gate_no_reason",
+        };
+      } catch {
+        // fall through to regex parsing
+      }
+    }
+
+    const passMatch = raw.match(/\bpass\s*[:=]\s*(true|false)\b/i);
+    if (passMatch) {
+      const stage2Passed = passMatch[1].toLowerCase() === "true";
+      return {
+        passed: stage2Passed,
+        stage1Passed: true,
+        stage2Passed,
+        reason: "gate_parse_fallback",
+      };
+    }
+
     return {
       passed: false,
       stage1Passed: true,

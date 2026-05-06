@@ -1,14 +1,23 @@
-import { runAnthropic, runGemini, runOpenAI, runPerplexity } from "../../providers/index.js";
+import { runAnthropic, runOpenAI, runPerplexity } from "../../providers/index.js";
 import { errorText } from "../../providers/retry.js";
 import type { AgentRole, Provider, ProviderFailure, ProviderResult } from "../../providers/types.js";
 import { roleSystemPrompt, wrapUserContent } from "./prompts.js";
+import { env } from "../../config/env.js";
 
-const PROVIDERS: Record<AgentRole, Provider> = {
-  advocate: runAnthropic,
-  critic: runOpenAI,
-  steelman: runGemini,
-  blindspot: runPerplexity,
-};
+function enabledProviders(): Array<[AgentRole, Provider]> {
+  // Only enable providers that have credentials configured.
+  // This prevents local beta runs from hard-failing when some keys are missing.
+  const entries: Array<[AgentRole, Provider]> = [];
+
+  // Anthropic is required by envSchema, so keep core roles available without Gemini.
+  entries.push(["advocate", runAnthropic]);
+  entries.push(["steelman", runAnthropic]);
+
+  if (env.OPENAI_API_KEY) entries.push(["critic", runOpenAI]);
+  if (env.PERPLEXITY_API_KEY) entries.push(["blindspot", runPerplexity]);
+
+  return entries;
+}
 
 function makeAbortController(signal?: AbortSignal, timeoutMs = 30_000): AbortController {
   const controller = new AbortController();
@@ -27,9 +36,10 @@ export interface ParallelAgentResult {
 export async function runParallelAgents(content: string, signal?: AbortSignal): Promise<ParallelAgentResult> {
   const controller = makeAbortController(signal);
   const user = wrapUserContent(content);
+  const providers = enabledProviders();
 
   const settled = await Promise.allSettled(
-    (Object.entries(PROVIDERS) as Array<[AgentRole, Provider]>).map(([role, provider]) =>
+    providers.map(([role, provider]) =>
       provider({
         role,
         system: roleSystemPrompt(role),
@@ -44,7 +54,7 @@ export async function runParallelAgents(content: string, signal?: AbortSignal): 
   const failures: ProviderFailure[] = [];
 
   settled.forEach((entry, index) => {
-    const role = (Object.keys(PROVIDERS) as AgentRole[])[index]!;
+    const role = providers[index]![0]!;
     if (entry.status === "fulfilled") {
       results.push(entry.value);
     } else {
@@ -57,7 +67,8 @@ export async function runParallelAgents(content: string, signal?: AbortSignal): 
     }
   });
 
-  if (results.length < 3) {
+  const requiredSuccess = Math.min(3, providers.length);
+  if (results.length < requiredSuccess) {
     const error = new Error("At least three model agents must succeed");
     (error as Error & { code: string; statusCode: number; failures: ProviderFailure[] }).code =
       "PIPELINE_INSUFFICIENT_AGENTS";

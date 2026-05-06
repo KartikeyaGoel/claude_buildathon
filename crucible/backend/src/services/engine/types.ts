@@ -35,6 +35,11 @@ export interface InterrogationResponse {
   reliability_signal: "high" | "moderate" | "low" | "contested";
   assumptions: ScoredAssumption[];
   divergence_details: Record<string, unknown>;
+  /**
+   * Stage-4 style recommendation produced from surfaced/scored assumptions.
+   * Returned by both REST API and MCP callers.
+   */
+  synthesis_text?: string;
   metadata: {
     cached: boolean;
     originating_model: string;

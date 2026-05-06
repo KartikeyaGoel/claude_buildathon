@@ -4,6 +4,7 @@ import { assertContentLength, runGate } from "./gating.js";
 import { runParallelAgents } from "./parallelAgents.js";
 import { detectTier2Followthrough } from "./tier2.js";
 import { judgeAssumptions } from "./validityJudge.js";
+import { synthesizeFinalRecommendation } from "./synthesizeFinalRecommendation.js";
 import type { InterrogationResponse, RunInterrogationInput } from "./types.js";
 
 function makeController(signal?: AbortSignal): AbortController {
@@ -30,8 +31,31 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
       source: input.source,
       response: cached,
     });
+    if (cached.synthesis_text) {
+      return {
+        ...cached,
+        interrogation_id: interrogationId,
+      };
+    }
+
+    // Backfill synthesis_text for older cached rows (before the synthesis stage was wired in).
+    const steelmanText =
+      cached.metadata.model_outputs.find((m) => m.role === "steelman")?.role != null
+        ? "Raw steelman output unavailable because this cache row predates persisted synthesis_text."
+        : "STEELMAN stage not available in this cached run.";
+
+    const synthesisText = await synthesizeFinalRecommendation({
+      decisionText: input.content,
+      framingText: "Framing heuristics (gate reasoning) not persisted in cache; synthesizing from scored assumptions only.",
+      assumptions: cached.assumptions,
+      steelmanText,
+      agentOutputs: [],
+      signal: controller.signal,
+    });
+
     return {
       ...cached,
+      synthesis_text: synthesisText,
       interrogation_id: interrogationId,
     };
   }
@@ -46,6 +70,19 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
 
   const agents = await runParallelAgents(input.content, controller.signal);
   const assumptions = await judgeAssumptions(agents.results, controller.signal);
+
+  // Stage-4 style final recommendation for REST callers.
+  const synthesisText = await synthesizeFinalRecommendation({
+    decisionText: input.content,
+    framingText: gate.reason,
+    assumptions,
+    steelmanText:
+      agents.results.find((r) => r.role === "steelman")?.text ??
+      "STEELMAN stage not available in this run.",
+    agentOutputs: agents.results,
+    signal: controller.signal,
+  });
+
   const response = await composeAndPersist({
     user: input.user,
     content: input.content,
@@ -57,6 +94,7 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
     agentResults: agents.results,
     degradedAgents: agents.degradedAgents,
     assumptions,
+    synthesisText,
     signal: controller.signal,
   });
 

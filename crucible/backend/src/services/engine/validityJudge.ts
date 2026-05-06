@@ -28,6 +28,32 @@ function clampScore(value: unknown): number {
   return Math.max(0, Math.min(1, score));
 }
 
+function extractJsonFromText(text: string): unknown | null {
+  const raw = text.trim();
+
+  // Most common failure mode: Claude/LLMs wrap JSON in ```json ... ``` fences.
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced?.[1]) {
+    try {
+      return JSON.parse(fenced[1]);
+    } catch {
+      // fall through
+    }
+  }
+
+  // Fallback: grab the first JSON object-ish region.
+  const objMatch = raw.match(/\{[\s\S]*\}/);
+  if (objMatch?.[0]) {
+    try {
+      return JSON.parse(objMatch[0]);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 function sourceModels(value: unknown): AgentRole[] {
   if (!Array.isArray(value)) return [];
   const allowed = new Set<AgentRole>(["advocate", "critic", "steelman", "blindspot"]);
@@ -54,7 +80,13 @@ export async function judgeAssumptions(
     signal,
   });
 
-  const parsed = JSON.parse(result.text) as RawJudgeResponse;
+  const extracted = extractJsonFromText(result.text);
+  if (!extracted) {
+    console.warn("[validityJudge] Failed to parse JSON; returning no assumptions");
+    return [];
+  }
+
+  const parsed = extracted as RawJudgeResponse;
   const rawAssumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
 
   return rawAssumptions

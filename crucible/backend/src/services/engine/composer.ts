@@ -57,6 +57,7 @@ export async function composeAndPersist(params: {
   agentResults: ProviderResult[];
   degradedAgents: AgentRole[];
   assumptions: ScoredAssumption[];
+  synthesisText?: string;
   signal?: AbortSignal;
 }): Promise<InterrogationResponse> {
   const enriched = params.assumptions.map(enrichAssumption);
@@ -96,6 +97,7 @@ export async function composeAndPersist(params: {
         ]),
       ),
     },
+    ...(params.synthesisText ? { synthesis_text: params.synthesisText } : {}),
     metadata: {
       cached: false,
       originating_model: params.originatingModel,
