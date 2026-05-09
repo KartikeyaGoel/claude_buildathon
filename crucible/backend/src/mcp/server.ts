@@ -1,6 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { interrogateInputSchema, interrogateTool } from "./tools/interrogate.js";
+import {
+  reportFollowupContextInputSchema,
+  reportFollowupContextTool,
+} from "./tools/reportFollowupContext.js";
 import { reportOutcomeInputSchema, reportOutcomeTool } from "./tools/reportOutcome.js";
 
 export function createMcpServer(): McpServer {
@@ -27,6 +31,17 @@ export function createMcpServer(): McpServer {
       inputSchema: reportOutcomeInputSchema,
     },
     reportOutcomeTool,
+  );
+
+  server.registerTool(
+    "report_followup_context",
+    {
+      title: "Report follow-up context",
+      description:
+        "Record the next few user/assistant messages after a Crucible interrogation so Crucible can evaluate downstream reasoning changes.",
+      inputSchema: reportFollowupContextInputSchema,
+    },
+    reportFollowupContextTool,
   );
 
   return server;
