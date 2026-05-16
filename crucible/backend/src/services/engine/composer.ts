@@ -5,6 +5,13 @@ import type { AgentRole, ProviderResult } from "../../providers/types.js";
 import { contentHash } from "../../utils/crypto.js";
 import { dispatchWebhook } from "../../webhooks/dispatcher.js";
 import { canonicalizeAssumption } from "./canonicalize.js";
+import {
+  buildDeliberationGraphJson,
+  claimTypeDistribution,
+  enrichAssumption,
+  relevanceFromAssumption,
+  sanitizeAssumptionType,
+} from "./deliberationGraph.js";
 import type { AuthenticatedUser, GateResult, InterrogationResponse, ScoredAssumption } from "./types.js";
 
 interface IdRow extends QueryResultRow {
@@ -23,27 +30,6 @@ function reliabilitySignal(score: number, degradedAgents: AgentRole[]): Interrog
   if (score >= 0.75) return "low";
   if (score >= 0.45) return "moderate";
   return "high";
-}
-
-const ALL_ROLES: AgentRole[] = ["advocate", "critic", "steelman", "blindspot"];
-
-function enrichAssumption(assumption: ScoredAssumption): ScoredAssumption {
-  const sourceSet = new Set(assumption.sourceModels);
-  const modelsAccepting = ALL_ROLES.filter((role) => !sourceSet.has(role));
-  return {
-    ...assumption,
-    id: assumption.id ?? randomUUID(),
-    modelsAccepting,
-    crossModelAgreement: assumption.sourceModels.length / ALL_ROLES.length,
-  };
-}
-
-function claimTypeDistribution(assumptions: ScoredAssumption[]): Record<string, number> {
-  const counts = new Map<string, number>();
-  for (const assumption of assumptions) counts.set(assumption.type, (counts.get(assumption.type) ?? 0) + 1);
-  return Object.fromEntries(
-    [...counts.entries()].map(([type, count]) => [type, count / Math.max(assumptions.length, 1)]),
-  );
 }
 
 export async function composeAndPersist(params: {
@@ -113,6 +99,12 @@ export async function composeAndPersist(params: {
     },
   };
 
+  const graphAssumptions = canonicalized.map((entry) => entry.assumption);
+  const graphJson = buildDeliberationGraphJson({
+    assumptions: graphAssumptions,
+    synthesisText: params.synthesisText,
+  });
+
   const persisted = await withTransaction(async (client: PoolClient) => {
     const icr = await client.query<IdRow>(
       "INSERT INTO interrogation_context_records (user_id, trace_id, content_hash, originating_model, domain_tag, claim_type_distribution, raw_content, source, session_id, gate_stage1_passed, gate_stage2_passed, gate_reason) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12) RETURNING id",
@@ -137,7 +129,7 @@ export async function composeAndPersist(params: {
       "INSERT INTO deliberation_traces (icr_id, graph_json, model_agreement_map, validity_scores, agent_outputs, validity_judgement, divergence_score, reliability_signal, degraded_agents, cached) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, false) RETURNING id",
       [
         icrId,
-        JSON.stringify({ nodes: [], edges: [] }),
+        JSON.stringify(graphJson),
         JSON.stringify(response.divergence_details.model_agreement_map ?? {}),
         JSON.stringify({ assumptions: response.assumptions }),
         JSON.stringify(params.agentResults),
@@ -151,14 +143,14 @@ export async function composeAndPersist(params: {
 
     for (const entry of canonicalized) {
       await client.query(
-        "INSERT INTO assumption_extraction_records (dt_id, icr_id, user_id, canonical_id, raw_text, assumption_type, domain_cluster, models_flagging, models_accepting, cross_model_agreement_score, validity_score, consequence_score, novelty_score, relevance_score, composite_score, embedding) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, $14, $15::vector)",
+        "INSERT INTO assumption_extraction_records (dt_id, icr_id, user_id, canonical_id, raw_text, assumption_type, domain_cluster, models_flagging, models_accepting, cross_model_agreement_score, validity_score, consequence_score, novelty_score, relevance_score, composite_score, embedding) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::vector)",
         [
           dtId,
           icrId,
           params.user.id,
           entry.assumption.canonicalId ?? null,
           entry.assumption.text,
-          entry.assumption.type,
+          sanitizeAssumptionType(entry.assumption.type),
           entry.assumption.domain,
           entry.assumption.sourceModels,
           entry.assumption.modelsAccepting ?? [],
@@ -166,6 +158,7 @@ export async function composeAndPersist(params: {
           entry.assumption.validity,
           entry.assumption.consequence,
           entry.assumption.novelty,
+          relevanceFromAssumption(entry.assumption),
           entry.assumption.compositeScore,
           entry.embedding,
         ],
@@ -175,6 +168,22 @@ export async function composeAndPersist(params: {
     await client.query(
       "INSERT INTO tier2_watches (icr_id, user_id, expires_at) VALUES ($1, $2, now() + interval '7 days')",
       [icrId, params.user.id],
+    );
+
+    await client.query(
+      "INSERT INTO resolution_artifacts (icr_id, user_id, decision, outcome, confidence, tier2_followthrough, metadata) VALUES ($1, $2, 'pipeline_completed', NULL, NULL, false, $3::jsonb)",
+      [
+        icrId,
+        params.user.id,
+        JSON.stringify({
+          phase: "automatic",
+          assumption_count: enriched.length,
+          agents_completed: params.agentResults.length,
+          execution_time_ms: response.metadata.execution_time_ms,
+          degraded_agents: params.degradedAgents,
+          synthesis_present: Boolean(params.synthesisText?.trim()),
+        }),
+      ],
     );
 
     return icrId;

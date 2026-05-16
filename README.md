@@ -342,3 +342,38 @@ We chose not to build a fast mode. That's the product Crucible replaces.
 Built at Claude @ Stanford Buildathon 2026.
 
 *"The ethics of AI decision support can be the architecture, not a layer bolted on top of it."*
+
+---
+
+## Local MCP testing
+
+Quick local smoke test flow (no Claude Desktop config required here):
+
+1. Start backend over HTTP MCP (`/mcp`):
+
+```bash
+cd crucible/backend
+npm run dev
+```
+
+Then in another terminal:
+
+```bash
+curl -X GET http://localhost:3001/v1/health
+curl -X POST http://localhost:3001/v1/users/register
+```
+
+Use the returned `api_key` to call MCP HTTP locally at `http://localhost:3001/mcp` with `Authorization: Bearer <api_key>`.
+
+2. Start stdio MCP directly:
+
+```bash
+cd crucible/backend
+npm run mcp:stdio
+```
+
+If your client has issues with npm working directory or noisy stdout, use:
+
+```bash
+/Users/test/.nvm/versions/node/v20.19.2/bin/npm --prefix /Users/test/Documents/GitHub/claude_buildathon/crucible/backend --silent run mcp:stdio
+```

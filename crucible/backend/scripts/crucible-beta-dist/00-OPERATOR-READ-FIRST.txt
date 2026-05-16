@@ -1,0 +1,22 @@
+Crucible beta zip — before you send this to testers
+=====================================================
+
+1. Edit THESE TWO FILES and replace the placeholder URLs with your Cloud Run URLs:
+   - run-installer-to-log.bat     (lines CRUCIBLE_API_BASE and CRUCIBLE_MCP_URL)
+   - Install-Crucible.command     (same two values)
+
+   API base:  https://YOUR-CRUCIBLE-API-SERVICE.run.app        (no path)
+   MCP URL:    https://YOUR-CRUCIBLE-MCP-SERVICE.run.app/mcp  (must include /mcp)
+
+2. On your Mac only (optional): chmod +x Install-Crucible.command
+   Then zip — macOS zip preserves the executable bit for testers on Mac.
+
+3. Zip THIS ENTIRE FOLDER (all files together):
+   - In Finder: select all items inside crucible-beta-dist → Compress
+   - Name it e.g. Crucible-Beta-Install.zip
+
+4. Do not commit real URLs to git if the repo is public.
+
+Tester docs: README-WINDOWS.txt and README-macOS.txt
+
+Full operator notes: ../BETA_DISTRIBUTION.md

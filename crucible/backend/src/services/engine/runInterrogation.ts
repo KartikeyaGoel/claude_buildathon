@@ -22,7 +22,7 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
   await detectTier2Followthrough(input.user, input.content, controller.signal);
   const cached = await getCachedResponse(input.content, domain, originatingModel);
   if (cached) {
-    const interrogationId = await recordCacheHit({
+    const { interrogationId, traceId } = await recordCacheHit({
       user: input.user,
       content: input.content,
       domain,
@@ -35,6 +35,7 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
       return {
         ...cached,
         interrogation_id: interrogationId,
+        trace_id: traceId,
       };
     }
 
@@ -57,6 +58,7 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
       ...cached,
       synthesis_text: synthesisText,
       interrogation_id: interrogationId,
+      trace_id: traceId,
     };
   }
 

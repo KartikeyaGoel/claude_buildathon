@@ -14,6 +14,9 @@ const outcomeSchema = z.object({
   confidence: z.number().min(0).max(1).optional(),
   followthrough_prompt: z.string().optional(),
   followthrough_detected: z.boolean().default(false),
+  implicated_assumption_id: z.string().uuid().optional(),
+  action_taken: z.string().optional(),
+  provider: z.string().optional(),
 }).refine((data) => data.trace_id || data.interrogation_id, "trace_id or interrogation_id is required");
 
 export async function registerOutcomeRoutes(app: FastifyInstance): Promise<void> {
@@ -46,12 +49,28 @@ export async function registerOutcomeRoutes(app: FastifyInstance): Promise<void>
     }
 
     if (parsed.data.failure_mode) {
+      const errorMessage = [parsed.data.failure_mode, parsed.data.notes].filter(Boolean).join(" — ") || "failure_reported";
       await query(
-        "INSERT INTO execution_failure_records (user_id, icr_id, trace_id, action_taken, execution_succeeded, failure_mode, outcome_reported_at, failure_type, error_message) SELECT $1, id, trace_id, $2, false, $3, now(), 'outcome_reported_failure', $3 FROM interrogation_context_records WHERE user_id = $1 AND (id = $4 OR trace_id = $5)",
+        `INSERT INTO execution_failure_records (
+          user_id, icr_id, dt_id, trace_id, action_taken, execution_succeeded, failure_mode,
+          outcome_reported_at, assumption_id_implicated, provider, failure_type, error_message, metadata
+        )
+        SELECT $1, icr.id, dt.id, icr.trace_id, $2, false, $3, now(), $4::uuid, $5, 'outcome_reported_failure', $6, $7::jsonb
+        FROM interrogation_context_records icr
+        JOIN deliberation_traces dt ON dt.icr_id = icr.id
+        WHERE icr.user_id = $1 AND (icr.id = $8::uuid OR icr.trace_id = $9)`,
         [
           request.user.id,
-          parsed.data.decision,
+          parsed.data.action_taken ?? parsed.data.decision,
           parsed.data.failure_mode,
+          parsed.data.implicated_assumption_id ?? null,
+          parsed.data.provider ?? null,
+          errorMessage,
+          JSON.stringify({
+            notes: parsed.data.notes ?? null,
+            outcome: parsed.data.outcome ?? null,
+            followthrough_detected: parsed.data.followthrough_detected,
+          }),
           parsed.data.interrogation_id ?? null,
           parsed.data.trace_id ?? null,
         ],
