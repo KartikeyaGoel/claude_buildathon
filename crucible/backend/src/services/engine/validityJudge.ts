@@ -1,6 +1,6 @@
 import { runAnthropic } from "../../providers/anthropic.js";
 import type { AgentRole, ProviderResult } from "../../providers/types.js";
-import { VALIDITY_JUDGE_SYSTEM_PROMPT, wrapUserContent } from "./prompts.js";
+import { VALIDITY_JUDGE_SYSTEM_PROMPT, wrapInterrogationContent } from "./prompts.js";
 import type { ScoredAssumption } from "./types.js";
 
 interface RawJudgeAssumption {
@@ -63,6 +63,7 @@ function sourceModels(value: unknown): AgentRole[] {
 export async function judgeAssumptions(
   agentOutputs: ProviderResult[],
   signal: AbortSignal,
+  userPosition?: string,
 ): Promise<ScoredAssumption[]> {
   const payload = JSON.stringify(
     agentOutputs.map((output) => ({
@@ -72,10 +73,14 @@ export async function judgeAssumptions(
     })),
   );
 
+  const wrappedPayload = userPosition?.trim()
+    ? `${payload}\n\nUser position to stress-test against agent outputs:\n${userPosition.trim()}`
+    : payload;
+
   const result = await runAnthropic({
     role: "critic",
     system: VALIDITY_JUDGE_SYSTEM_PROMPT,
-    user: wrapUserContent(payload),
+    user: wrapInterrogationContent(wrappedPayload),
     timeoutMs: 30_000,
     signal,
   });

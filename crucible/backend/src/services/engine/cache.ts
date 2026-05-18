@@ -21,16 +21,18 @@ interface IdRow extends QueryResultRow {
   id: string;
 }
 
-export function hashInterrogationContent(content: string): string {
-  return contentHash(content);
+export function hashInterrogationContent(content: string, userPosition?: string): string {
+  const positionSuffix = userPosition?.trim() ? `\n\n__user_position__\n${userPosition.trim()}` : "";
+  return contentHash(`${content}${positionSuffix}`);
 }
 
 export async function getCachedResponse(
   content: string,
   domain: string,
   originatingModel: string,
+  userPosition?: string,
 ): Promise<InterrogationResponse | null> {
-  const hash = hashInterrogationContent(content);
+  const hash = hashInterrogationContent(content, userPosition);
   const result = await query<CacheRow>(
     "SELECT content_hash, response_json FROM interrogation_cache WHERE content_hash = $1 AND domain_tag = $2 AND originating_model = $3 AND expires_at > now()",
     [hash, domain, originatingModel],
@@ -60,6 +62,7 @@ export async function recordCacheHit(params: {
   sessionId?: string;
   source: "api" | "mcp";
   response: InterrogationResponse;
+  userPosition?: string;
 }): Promise<{ interrogationId: string; traceId: string }> {
   const enriched = params.response.assumptions.map(enrichAssumption);
   const traceId = `${params.response.trace_id}:cache:${Date.now()}`;
@@ -79,17 +82,18 @@ export async function recordCacheHit(params: {
 
   return withTransaction(async (client: PoolClient) => {
     const icr = await client.query<IdRow>(
-      "INSERT INTO interrogation_context_records (user_id, trace_id, content_hash, originating_model, domain_tag, claim_type_distribution, raw_content, source, session_id, cache_hit, gate_stage1_passed, gate_stage2_passed, gate_reason) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, true, true, true, 'cache_hit') RETURNING id",
+      "INSERT INTO interrogation_context_records (user_id, trace_id, content_hash, originating_model, domain_tag, claim_type_distribution, raw_content, source, session_id, cache_hit, gate_stage1_passed, gate_stage2_passed, gate_reason, user_position) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, true, true, true, 'cache_hit', $10) RETURNING id",
       [
         params.user.id,
         traceId,
-        hashInterrogationContent(params.content),
+        hashInterrogationContent(params.content, params.userPosition),
         params.originatingModel,
         params.domain,
         JSON.stringify(claimTypeDistribution(enriched)),
         params.content,
         params.source,
         params.sessionId ?? null,
+        params.userPosition ?? null,
       ],
     );
     const icrId = icr.rows[0]!.id;
@@ -167,9 +171,17 @@ export async function putCachedResponse(
   originatingModel: string,
   traceId: string,
   response: InterrogationResponse,
+  userPosition?: string,
 ): Promise<void> {
   await query(
     "INSERT INTO interrogation_cache (content_hash, domain_tag, originating_model, dt_id, response_json, cached_dt_json, expires_at) SELECT $1, $2, $3, dt.id, $4::jsonb, $4::jsonb, now() + ($5 || ' hours')::interval FROM deliberation_traces dt JOIN interrogation_context_records icr ON icr.id = dt.icr_id WHERE icr.trace_id = $6 ON CONFLICT (content_hash, domain_tag, originating_model) DO UPDATE SET response_json = EXCLUDED.response_json, cached_dt_json = EXCLUDED.cached_dt_json, expires_at = EXCLUDED.expires_at, updated_at = now()",
-    [hashInterrogationContent(content), domain, originatingModel, JSON.stringify(response), env.CACHE_TTL_HOURS, traceId],
+    [
+      hashInterrogationContent(content, userPosition),
+      domain,
+      originatingModel,
+      JSON.stringify(response),
+      env.CACHE_TTL_HOURS,
+      traceId,
+    ],
   );
 }

@@ -28,6 +28,27 @@ export interface ScoredAssumption {
   canonicalId?: string | null;
 }
 
+export interface DeliberationStage {
+  agent_outputs: string[];
+  divergence_score: number;
+}
+
+export interface CognitiveGymSynthesis {
+  position_held: string;
+  position_cracked: string;
+  position_missed: string;
+  overall_confidence: number;
+  overall_divergence: number;
+}
+
+export interface CognitiveGymPayload {
+  framing: DeliberationStage;
+  assumption_excavation: DeliberationStage;
+  steelman: DeliberationStage;
+  synthesis: CognitiveGymSynthesis;
+  user_position_echo: string;
+}
+
 export interface InterrogationResponse {
   interrogation_id: string;
   trace_id: string;
@@ -40,6 +61,8 @@ export interface InterrogationResponse {
    * Returned by both REST API and MCP callers.
    */
   synthesis_text?: string;
+  /** Full Cognitive Gym deliberation payload (MCP and position-aware runs). */
+  cognitive_gym?: CognitiveGymPayload;
   metadata: {
     cached: boolean;
     originating_model: string;
@@ -54,6 +77,8 @@ export interface InterrogationResponse {
 export interface RunInterrogationInput {
   user: AuthenticatedUser;
   content: string;
+  /** Required for MCP; when set, pipeline stress-tests content against this commitment. */
+  userPosition?: string;
   domain?: string;
   context?: string;
   originatingModel?: string;

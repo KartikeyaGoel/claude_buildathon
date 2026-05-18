@@ -1,7 +1,7 @@
 import { runAnthropic, runOpenAI, runPerplexity } from "../../providers/index.js";
 import { errorText } from "../../providers/retry.js";
 import type { AgentRole, Provider, ProviderFailure, ProviderResult } from "../../providers/types.js";
-import { roleSystemPrompt, wrapUserContent } from "./prompts.js";
+import { roleSystemPrompt, wrapInterrogationContent } from "./prompts.js";
 import { env } from "../../config/env.js";
 
 function enabledProviders(): Array<[AgentRole, Provider]> {
@@ -33,9 +33,13 @@ export interface ParallelAgentResult {
   degradedAgents: AgentRole[];
 }
 
-export async function runParallelAgents(content: string, signal?: AbortSignal): Promise<ParallelAgentResult> {
+export async function runParallelAgents(
+  content: string,
+  signal?: AbortSignal,
+  userPosition?: string,
+): Promise<ParallelAgentResult> {
   const controller = makeAbortController(signal);
-  const user = wrapUserContent(content);
+  const user = wrapInterrogationContent(content, userPosition);
   const providers = enabledProviders();
 
   const settled = await Promise.allSettled(

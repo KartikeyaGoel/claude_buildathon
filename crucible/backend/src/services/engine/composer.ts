@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient, QueryResultRow } from "pg";
 import { withTransaction } from "../../db/client.js";
 import type { AgentRole, ProviderResult } from "../../providers/types.js";
-import { contentHash } from "../../utils/crypto.js";
+import { hashInterrogationContent } from "./cache.js";
 import { dispatchWebhook } from "../../webhooks/dispatcher.js";
 import { canonicalizeAssumption } from "./canonicalize.js";
 import {
@@ -12,7 +12,13 @@ import {
   relevanceFromAssumption,
   sanitizeAssumptionType,
 } from "./deliberationGraph.js";
-import type { AuthenticatedUser, GateResult, InterrogationResponse, ScoredAssumption } from "./types.js";
+import type {
+  AuthenticatedUser,
+  CognitiveGymPayload,
+  GateResult,
+  InterrogationResponse,
+  ScoredAssumption,
+} from "./types.js";
 
 interface IdRow extends QueryResultRow {
   id: string;
@@ -35,6 +41,7 @@ function reliabilitySignal(score: number, degradedAgents: AgentRole[]): Interrog
 export async function composeAndPersist(params: {
   user: AuthenticatedUser;
   content: string;
+  userPosition?: string;
   domain: string;
   originatingModel: string;
   sessionId?: string;
@@ -44,6 +51,7 @@ export async function composeAndPersist(params: {
   degradedAgents: AgentRole[];
   assumptions: ScoredAssumption[];
   synthesisText?: string;
+  cognitiveGym?: CognitiveGymPayload;
   signal?: AbortSignal;
 }): Promise<InterrogationResponse> {
   const enriched = params.assumptions.map(enrichAssumption);
@@ -84,6 +92,7 @@ export async function composeAndPersist(params: {
       ),
     },
     ...(params.synthesisText ? { synthesis_text: params.synthesisText } : {}),
+    ...(params.cognitiveGym ? { cognitive_gym: params.cognitiveGym } : {}),
     metadata: {
       cached: false,
       originating_model: params.originatingModel,
@@ -107,11 +116,11 @@ export async function composeAndPersist(params: {
 
   const persisted = await withTransaction(async (client: PoolClient) => {
     const icr = await client.query<IdRow>(
-      "INSERT INTO interrogation_context_records (user_id, trace_id, content_hash, originating_model, domain_tag, claim_type_distribution, raw_content, source, session_id, gate_stage1_passed, gate_stage2_passed, gate_reason) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12) RETURNING id",
+      "INSERT INTO interrogation_context_records (user_id, trace_id, content_hash, originating_model, domain_tag, claim_type_distribution, raw_content, source, session_id, gate_stage1_passed, gate_stage2_passed, gate_reason, user_position) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13) RETURNING id",
       [
         params.user.id,
         traceId,
-        contentHash(params.content),
+        hashInterrogationContent(params.content, params.userPosition),
         params.originatingModel,
         params.domain,
         JSON.stringify(claimTypeDistribution(enriched)),
@@ -121,6 +130,7 @@ export async function composeAndPersist(params: {
         params.gate.stage1Passed,
         params.gate.stage2Passed,
         params.gate.reason,
+        params.userPosition ?? null,
       ],
     );
     const icrId = icr.rows[0]!.id;
@@ -182,6 +192,8 @@ export async function composeAndPersist(params: {
           execution_time_ms: response.metadata.execution_time_ms,
           degraded_agents: params.degradedAgents,
           synthesis_present: Boolean(params.synthesisText?.trim()),
+          cognitive_gym: Boolean(params.cognitiveGym),
+          user_position_present: Boolean(params.userPosition?.trim()),
         }),
       ],
     );

@@ -12,6 +12,7 @@ import { formatSseMessage } from "../../utils/sseHelpers.js";
 
 const interrogateSchema = z.object({
   content: z.string().min(1),
+  user_position: z.string().min(1).optional(),
   domain: z
     .enum(["financial", "medical", "legal", "technical", "policy", "personal", "other"])
     .default("other"),
@@ -40,6 +41,7 @@ export async function registerInterrogateRoutes(app: FastifyInstance): Promise<v
         const response = await runInterrogation({
           user: request.user,
           content: parsed.data.content,
+          userPosition: parsed.data.user_position,
           domain: parsed.data.domain,
           context: parsed.data.context,
           originatingModel: parsed.data.originating_model,

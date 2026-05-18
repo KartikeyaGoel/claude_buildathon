@@ -7,9 +7,16 @@ export function wrapUserContent(content: string): string {
   return `${INJECTION_GUARD}\n\n<user_content>\n${content}\n</user_content>`;
 }
 
+export function wrapInterrogationContent(content: string, userPosition?: string): string {
+  const positionSection = userPosition?.trim()
+    ? `\n\n## User's stated position\nThe pipeline must stress-test the gap between this position and the submitted content.\n${userPosition.trim()}`
+    : "";
+  return wrapUserContent(`${content}${positionSection}`);
+}
+
 export function roleSystemPrompt(role: AgentRole): string {
   const base =
-    "You are a Crucible deliberation agent. Surface epistemic risk, hidden assumptions, and decision-critical uncertainty. Return only valid JSON matching the requested schema.";
+    "You are a Crucible deliberation agent. Surface epistemic risk, hidden assumptions, and decision-critical uncertainty. When a user position is provided, stress-test the gap between that position and the content — not the content in isolation. Return only valid JSON matching the requested schema.";
 
   switch (role) {
     case "advocate":

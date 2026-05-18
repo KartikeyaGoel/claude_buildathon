@@ -1,6 +1,6 @@
 import { env } from "../../config/env.js";
 import { runAnthropic } from "../../providers/anthropic.js";
-import { wrapUserContent, GATE_SYSTEM_PROMPT } from "./prompts.js";
+import { wrapInterrogationContent, GATE_SYSTEM_PROMPT } from "./prompts.js";
 import type { GateResult } from "./types.js";
 
 const PREDICTIVE_TERMS = /\b(will|should|likely|unlikely|forecast|predict|expect|assume|because|therefore|market|growth|risk|launch|scale|revenue|users|customers)\b/i;
@@ -22,7 +22,11 @@ export function stage1Gate(content: string): { passed: boolean; reason: string }
   };
 }
 
-export async function runGate(content: string, signal: AbortSignal): Promise<GateResult> {
+export async function runGate(
+  content: string,
+  signal: AbortSignal,
+  userPosition?: string,
+): Promise<GateResult> {
   const stage1 = stage1Gate(content);
   if (!stage1.passed) {
     return {
@@ -36,7 +40,7 @@ export async function runGate(content: string, signal: AbortSignal): Promise<Gat
   const result = await runAnthropic({
     role: "critic",
     system: GATE_SYSTEM_PROMPT,
-    user: wrapUserContent(content),
+    user: wrapInterrogationContent(content, userPosition),
     model: env.ANTHROPIC_GATE_MODEL,
     timeoutMs: 15_000,
     signal,
