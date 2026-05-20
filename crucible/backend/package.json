@@ -15,6 +15,7 @@
     "secrets:pull": "tsx src/scripts/pullSecrets.ts",
     "jobs:refresh-percentiles": "tsx src/scripts/refreshPercentiles.ts",
     "jobs:migrate": "tsx src/scripts/runMigrations.ts",
+    "export:training": "tsx src/scripts/exportTrainingData.ts",
     "migrate:up": "node-pg-migrate up --migrations-dir src/db/migrations --database-url-var DATABASE_URL",
     "migrate:down": "node-pg-migrate down --migrations-dir src/db/migrations --database-url-var DATABASE_URL",
     "migrate:create": "node-pg-migrate create --migrations-dir src/db/migrations",

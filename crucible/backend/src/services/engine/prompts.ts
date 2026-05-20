@@ -52,4 +52,7 @@ Extract only concrete assumptions that matter to reliability. Score each assumpt
 - validity: how likely it is true from 0 to 1
 - consequence: how much it matters from 0 to 1
 - novelty: how non-obvious it is from 0 to 1
-Return only valid JSON: {"assumptions":[{"assumption_text":"...","assumption_type":"empirical|causal|normative|strategic|predictive","domain":"financial|medical|legal|technical|policy|personal|other","validity":0.5,"consequence":0.5,"novelty":0.5,"composite_score":0.5,"models_that_flagged":["advocate"],"cross_model_agreement":0.25}]}`;
+- visibility: explicit | unstated | implicit | contextual
+- lens: selection | identity | incentive | temporal | taboo | optionality | second_order
+- load_bearing: true if the decision fails if this assumption is wrong
+Return only valid JSON: {"assumptions":[{"assumption_text":"...","assumption_type":"empirical|causal|normative|strategic|predictive","domain":"financial|medical|legal|technical|policy|personal|other","validity":0.5,"consequence":0.5,"novelty":0.5,"composite_score":0.5,"visibility":"implicit","lens":"temporal","load_bearing":true,"models_that_flagged":["advocate"],"cross_model_agreement":0.25}]}`;

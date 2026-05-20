@@ -24,12 +24,16 @@ function buildCognitiveGymUserContent(params: {
   assumptions: ScoredAssumption[];
   steelmanText: string;
   agentOutputText: string;
+  negativeSpaceText?: string;
+  temporalStackText?: string;
+  contextBundleText?: string;
+  userJudgment?: string;
 }): string {
   const mode = isNoPriorPosition(params.userPosition)
     ? "fresh-approach (no prior position)"
     : "standard (gap analysis against user position)";
 
-  return [
+  const sections = [
     `## Synthesis mode\n${mode}`,
     "",
     "## User's stated position",
@@ -37,12 +41,38 @@ function buildCognitiveGymUserContent(params: {
     "",
     "## Submitted source text",
     params.decisionText,
+  ];
+
+  if (params.contextBundleText?.trim()) {
+    sections.push("", params.contextBundleText.trim());
+  }
+
+  if (params.userJudgment?.trim()) {
+    sections.push(
+      "",
+      "## User's judgment on agent disagreement (required input for synthesis)",
+      params.userJudgment.trim(),
+    );
+  }
+
+  sections.push(
     "",
     "## Framing",
     params.framingText,
     "",
     "## Scored assumption excavation",
     buildAssumptionExcavationSummary(params.assumptions),
+  );
+
+  if (params.negativeSpaceText?.trim()) {
+    sections.push("", "## Negative-space analysis", params.negativeSpaceText.trim());
+  }
+
+  if (params.temporalStackText?.trim()) {
+    sections.push("", "## Temporal stack", params.temporalStackText.trim());
+  }
+
+  sections.push(
     "",
     "## Raw agent outputs",
     params.agentOutputText,
@@ -51,8 +81,10 @@ function buildCognitiveGymUserContent(params: {
     params.steelmanText,
     "",
     "## Your task",
-    "Return the synthesis JSON in the required format.",
-  ].join("\n");
+    "Return the synthesis JSON in the required format, including implicit_assumptions_surfaced when applicable.",
+  );
+
+  return sections.join("\n");
 }
 
 function buildLegacyUserContent(params: {
@@ -73,6 +105,10 @@ export async function synthesizeFinalRecommendation(params: {
   agentOutputs?: ProviderResult[];
   userPosition?: string;
   fallbackDivergence?: number;
+  negativeSpaceText?: string;
+  temporalStackText?: string;
+  contextBundleText?: string;
+  userJudgment?: string;
   signal: AbortSignal;
 }): Promise<string> {
   const agentOutputText = buildAgentOutputText(params.agentOutputs ?? []);
@@ -86,6 +122,10 @@ export async function synthesizeFinalRecommendation(params: {
       assumptions: params.assumptions,
       steelmanText: params.steelmanText,
       agentOutputText,
+      negativeSpaceText: params.negativeSpaceText,
+      temporalStackText: params.temporalStackText,
+      contextBundleText: params.contextBundleText,
+      userJudgment: params.userJudgment,
     });
 
     const result = await runAnthropic({
@@ -128,6 +168,10 @@ export async function synthesizeCognitiveGym(params: {
   assumptions: ScoredAssumption[];
   steelmanText: string;
   agentOutputs: ProviderResult[];
+  negativeSpaceText?: string;
+  temporalStackText?: string;
+  contextBundleText?: string;
+  userJudgment?: string;
   fallbackDivergence: number;
   signal: AbortSignal;
 }): Promise<CognitiveGymSynthesis> {
@@ -139,6 +183,10 @@ export async function synthesizeCognitiveGym(params: {
     agentOutputs: params.agentOutputs,
     userPosition: params.userPosition,
     fallbackDivergence: params.fallbackDivergence,
+    negativeSpaceText: params.negativeSpaceText,
+    temporalStackText: params.temporalStackText,
+    contextBundleText: params.contextBundleText,
+    userJudgment: params.userJudgment,
     signal: params.signal,
   });
 

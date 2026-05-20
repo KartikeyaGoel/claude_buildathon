@@ -9,12 +9,16 @@ import { streamAgentCompletion } from "./streamCompletion.js";
 function buildAssumptionUserContent(params: {
   decisionText: string;
   framingText: string;
+  contextBundleText?: string;
   iteration: number;
   previousOutput: string | null;
   graderFeedback: string | null;
 }): string {
-  const { decisionText, framingText, iteration, previousOutput, graderFeedback } = params;
-  let body = `## Decision (user)\n${decisionText}\n\n## Framing (confirmed)\n${framingText}\n\n## Your task\nPerform layered assumption excavation as specified in your system instructions.`;
+  const { decisionText, framingText, contextBundleText, iteration, previousOutput, graderFeedback } = params;
+  let body = contextBundleText?.trim()
+    ? `${contextBundleText.trim()}\n\n`
+    : "";
+  body += `## Decision (user)\n${decisionText}\n\n## Framing (confirmed)\n${framingText}\n\n## Your task\nPerform layered assumption excavation as specified in your system instructions.`;
   if (iteration > 1 && previousOutput != null) {
     body += `\n\n## Previous iteration output\n${previousOutput}\n\n## GRADER FEEDBACK\n${graderFeedback ?? ""}\n\nRevise and strengthen your excavation; address the feedback above. Only the latest feedback applies.`;
   }
@@ -24,6 +28,7 @@ function buildAssumptionUserContent(params: {
 export async function runAssumptionIteration(params: {
   decisionText: string;
   framingText: string;
+  contextBundleText?: string;
   iteration: number;
   previousOutput: string | null;
   graderFeedback: string | null;
@@ -87,6 +92,9 @@ function buildSynthesisUserContent(params: {
   framingText: string;
   assumptionText: string;
   steelmanText: string;
+  negativeSpaceText?: string;
+  temporalStackText?: string;
+  contextBundleText?: string;
   iteration: number;
   previousOutput: string | null;
   graderFeedback: string | null;
@@ -96,11 +104,22 @@ function buildSynthesisUserContent(params: {
     framingText,
     assumptionText,
     steelmanText,
+    negativeSpaceText,
+    temporalStackText,
+    contextBundleText,
     iteration,
     previousOutput,
     graderFeedback,
   } = params;
-  let body = `## Decision (user)\n${decisionText}\n\n## Framing\n${framingText}\n\n## Assumption excavation\n${assumptionText}\n\n## Steelman\n${steelmanText}\n\n## Your task\nProduce the synthesis output in the required format.`;
+  let body = contextBundleText?.trim() ? `${contextBundleText.trim()}\n\n` : "";
+  body += `## Decision (user)\n${decisionText}\n\n## Framing\n${framingText}\n\n## Assumption excavation\n${assumptionText}\n\n## Steelman\n${steelmanText}`;
+  if (negativeSpaceText?.trim()) {
+    body += `\n\n## Negative-space analysis\n${negativeSpaceText.trim()}`;
+  }
+  if (temporalStackText?.trim()) {
+    body += `\n\n## Temporal stack\n${temporalStackText.trim()}`;
+  }
+  body += `\n\n## Your task\nProduce the synthesis output in the required format.`;
   if (iteration > 1 && previousOutput != null) {
     body += `\n\n## Previous iteration output\n${previousOutput}\n\n## GRADER FEEDBACK\n${graderFeedback ?? ""}\n\nRevise your synthesis; address the feedback above. Only the latest feedback applies.`;
   }
@@ -112,6 +131,9 @@ export async function runSynthesisIteration(params: {
   framingText: string;
   assumptionText: string;
   steelmanText: string;
+  negativeSpaceText?: string;
+  temporalStackText?: string;
+  contextBundleText?: string;
   iteration: number;
   previousOutput: string | null;
   graderFeedback: string | null;

@@ -85,11 +85,25 @@ Signing/notarization (paid) reduces friction later.
 
 ## 6. Security
 
-The installer calls **`POST /v1/users/register`** on the API URL. If the zip leaks, anyone can mint users — consider invite-only, a registration secret, or rate limits for open enrollment.
+The installer calls **`POST /v1/users/register`** on the API URL. If the zip leaks, anyone can mint users — set **`REGISTRATION_SECRET`** in production and pass header **`X-Registration-Secret`** from the installer (or use invite-only enrollment).
 
 ---
 
-## 7. Installer behavior reference
+## 7. Cognitive Gym MCP flow (beta)
+
+Crucible uses **staged tools** — synthesis is not returned until the user participates:
+
+| Step | Tool | When |
+|------|------|------|
+| 1 | `deliberate` | User commits a position; returns deliberation + one disagreement question |
+| 2 | `synthesize` | After user answers; pass `user_judgment` → returns synthesis + closing question |
+| 3 | `commit` | After user recommits; pass `final_position` → records position delta |
+
+Legacy `interrogate` aliases to `deliberate` only (no synthesis). Export training pairs: `npm run export:training`.
+
+---
+
+## 8. Installer behavior reference
 
 | Step | URL |
 |------|-----|

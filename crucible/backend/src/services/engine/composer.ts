@@ -17,6 +17,7 @@ import type {
   CognitiveGymPayload,
   GateResult,
   InterrogationResponse,
+  PipelineAmplificationMeta,
   ScoredAssumption,
 } from "./types.js";
 
@@ -52,6 +53,8 @@ export async function composeAndPersist(params: {
   assumptions: ScoredAssumption[];
   synthesisText?: string;
   cognitiveGym?: CognitiveGymPayload;
+  framingText?: string;
+  pipelineAmplification?: PipelineAmplificationMeta;
   signal?: AbortSignal;
 }): Promise<InterrogationResponse> {
   const enriched = params.assumptions.map(enrichAssumption);
@@ -136,7 +139,7 @@ export async function composeAndPersist(params: {
     const icrId = icr.rows[0]!.id;
 
     const dt = await client.query<IdRow>(
-      "INSERT INTO deliberation_traces (icr_id, graph_json, model_agreement_map, validity_scores, agent_outputs, validity_judgement, divergence_score, reliability_signal, degraded_agents, cached) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, false) RETURNING id",
+      "INSERT INTO deliberation_traces (icr_id, graph_json, model_agreement_map, validity_scores, agent_outputs, validity_judgement, divergence_score, reliability_signal, degraded_agents, cached, pipeline_amplification) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, false, $10::jsonb) RETURNING id",
       [
         icrId,
         JSON.stringify(graphJson),
@@ -147,13 +150,17 @@ export async function composeAndPersist(params: {
         response.divergence_score,
         response.reliability_signal,
         params.degradedAgents,
+        JSON.stringify({
+          ...(params.pipelineAmplification ?? {}),
+          framing_text: params.framingText ?? params.gate.reason,
+        }),
       ],
     );
     const dtId = dt.rows[0]!.id;
 
     for (const entry of canonicalized) {
       await client.query(
-        "INSERT INTO assumption_extraction_records (dt_id, icr_id, user_id, canonical_id, raw_text, assumption_type, domain_cluster, models_flagging, models_accepting, cross_model_agreement_score, validity_score, consequence_score, novelty_score, relevance_score, composite_score, embedding) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::vector)",
+        "INSERT INTO assumption_extraction_records (dt_id, icr_id, user_id, canonical_id, raw_text, assumption_type, domain_cluster, models_flagging, models_accepting, cross_model_agreement_score, validity_score, consequence_score, novelty_score, relevance_score, composite_score, embedding, visibility, lens, load_bearing) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::vector, $17, $18, $19)",
         [
           dtId,
           icrId,
@@ -171,6 +178,9 @@ export async function composeAndPersist(params: {
           relevanceFromAssumption(entry.assumption),
           entry.assumption.compositeScore,
           entry.embedding,
+          entry.assumption.visibility ?? null,
+          entry.assumption.lens ?? null,
+          entry.assumption.load_bearing ?? null,
         ],
       );
     }
@@ -186,7 +196,7 @@ export async function composeAndPersist(params: {
         icrId,
         params.user.id,
         JSON.stringify({
-          phase: "automatic",
+          phase: params.pipelineAmplification?.defer_synthesis ? "deliberation_only" : "automatic",
           assumption_count: enriched.length,
           agents_completed: params.agentResults.length,
           execution_time_ms: response.metadata.execution_time_ms,

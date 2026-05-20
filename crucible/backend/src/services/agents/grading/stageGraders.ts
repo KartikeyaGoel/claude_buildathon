@@ -45,8 +45,16 @@ function assumptionEnforcedPass(scores: {
   depth: number;
   coverage: number;
   independence: number;
+  implicitness: number;
+  contextualGrounding: number;
 }): boolean {
-  return scores.depth >= 4 && scores.coverage >= 4 && scores.independence >= 3;
+  return (
+    scores.depth >= 4 &&
+    scores.coverage >= 4 &&
+    scores.independence >= 3 &&
+    scores.implicitness >= 3 &&
+    scores.contextualGrounding >= 3
+  );
 }
 
 export async function gradeAssumptionOutput(
@@ -71,6 +79,8 @@ export async function gradeAssumptionOutput(
     depth: Number(s.depth ?? 0),
     coverage: Number(s.coverage ?? 0),
     independence: Number(s.independence ?? 0),
+    implicitness: Number(s.implicitness ?? 0),
+    contextualGrounding: Number(s.contextualGrounding ?? 0),
   };
   return {
     stage: "assumption",
@@ -82,7 +92,13 @@ export async function gradeAssumptionOutput(
 }
 
 export function sumAssumptionScores(grade: Extract<StageGrade, { stage: "assumption" }>): number {
-  return grade.scores.depth + grade.scores.coverage + grade.scores.independence;
+  return (
+    grade.scores.depth +
+    grade.scores.coverage +
+    grade.scores.independence +
+    grade.scores.implicitness +
+    grade.scores.contextualGrounding
+  );
 }
 
 // --- Steelman

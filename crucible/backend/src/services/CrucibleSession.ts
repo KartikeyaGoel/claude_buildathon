@@ -22,6 +22,9 @@ export class CrucibleSession {
   framingText: string | null = null;
   assumptionText: string | null = null;
   steelmanText: string | null = null;
+  negativeSpaceText: string | null = null;
+  temporalStackText: string | null = null;
+  contextBundleText?: string;
   synthesisText: string | null = null;
   phase: SessionPhase = "framing_running";
   lastCompletedStage: PipelineStage | null = null;

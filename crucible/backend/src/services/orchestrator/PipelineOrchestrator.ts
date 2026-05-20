@@ -14,6 +14,8 @@ import {
   sumSynthesisScores,
 } from "../agents/grading/stageGraders.js";
 import type { CrucibleSession } from "../CrucibleSession.js";
+import { runNegativeSpacePass } from "../engine/negativeSpace.js";
+import { runTemporalStackFromText } from "../engine/temporalStack.js";
 import { LoopController } from "./LoopController.js";
 
 function isAbortError(e: unknown): boolean {
@@ -38,6 +40,7 @@ export class PipelineOrchestrator {
     try {
       const text = await runFramingInitial({
         decisionText: session.decisionText,
+        contextBundleText: session.contextBundleText,
         signal: session.abortController.signal,
         onChunk: (t) => session.emit("agent_chunk", { stage: "framing", text: t }),
       });
@@ -112,6 +115,7 @@ export class PipelineOrchestrator {
         decisionText: session.decisionText,
         priorFraming: prior,
         userFeedback: feedback,
+        contextBundleText: session.contextBundleText,
         signal: session.abortController.signal,
         onChunk: (t) => session.emit("agent_chunk", { stage: "framing", text: t }),
       });
@@ -144,7 +148,7 @@ export class PipelineOrchestrator {
       session.emit("stage_start", { stage: "assumption" });
       session.emit("stage_start", { stage: "steelman" });
 
-      const [assumptionResult, steelmanResult] = await Promise.all([
+      const [assumptionResult, steelmanResult, negativeSpaceText] = await Promise.all([
         lc.runLoop({
           stage: "assumption",
           signal: session.abortController.signal,
@@ -153,6 +157,7 @@ export class PipelineOrchestrator {
             runAssumptionIteration({
               decisionText: session.decisionText,
               framingText: framing,
+              contextBundleText: session.contextBundleText,
               iteration,
               previousOutput,
               graderFeedback,
@@ -191,10 +196,32 @@ export class PipelineOrchestrator {
             }),
           sumScores: (g) => sumSteelmanScores(g),
         }),
+        runNegativeSpacePass({
+          content: session.decisionText,
+          framingText: framing,
+          contextBundleText: session.contextBundleText,
+          signal: session.abortController.signal,
+        }).catch((e) => {
+          console.warn("[pipeline] negative-space pass failed", e);
+          return "";
+        }),
       ]);
 
       session.assumptionText = assumptionResult.text;
       session.steelmanText = steelmanResult.text;
+      session.negativeSpaceText = negativeSpaceText;
+
+      const { text: temporalStackText } = await runTemporalStackFromText({
+        content: session.decisionText,
+        framingText: framing,
+        assumptionText: assumptionResult.text,
+        signal: session.abortController.signal,
+      }).catch((e) => {
+        console.warn("[pipeline] temporal stack failed", e);
+        return { text: "", stacks: [] };
+      });
+      session.temporalStackText = temporalStackText;
+
       session.lastCompletedStage = "assumption";
       session.emit("stage_complete", {
         stage: "assumption",
@@ -217,6 +244,9 @@ export class PipelineOrchestrator {
             framingText: framing,
             assumptionText: assumptionResult.text,
             steelmanText: steelmanResult.text,
+            negativeSpaceText,
+            temporalStackText,
+            contextBundleText: session.contextBundleText,
             iteration,
             previousOutput,
             graderFeedback,
@@ -248,6 +278,8 @@ export class PipelineOrchestrator {
           assumption: assumptionResult.text,
           steelman: steelmanResult.text,
           synthesis: synthesisResult.text,
+          negative_space: negativeSpaceText,
+          temporal_stack: temporalStackText,
         },
       });
       session.phase = "complete";

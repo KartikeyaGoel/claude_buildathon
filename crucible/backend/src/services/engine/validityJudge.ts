@@ -1,5 +1,6 @@
 import { runAnthropic } from "../../providers/anthropic.js";
 import type { AgentRole, ProviderResult } from "../../providers/types.js";
+import { parseTaxonomyFromRaw, passesValidityJudgeFilter } from "./assumptionTaxonomy.js";
 import { VALIDITY_JUDGE_SYSTEM_PROMPT, wrapInterrogationContent } from "./prompts.js";
 import type { ScoredAssumption } from "./types.js";
 
@@ -13,6 +14,9 @@ interface RawJudgeAssumption {
   consequence?: unknown;
   novelty?: unknown;
   composite_score?: unknown;
+  visibility?: unknown;
+  lens?: unknown;
+  load_bearing?: unknown;
   sourceModels?: unknown;
   models_that_flagged?: unknown;
   cross_model_agreement?: unknown;
@@ -31,7 +35,6 @@ function clampScore(value: unknown): number {
 function extractJsonFromText(text: string): unknown | null {
   const raw = text.trim();
 
-  // Most common failure mode: Claude/LLMs wrap JSON in ```json ... ``` fences.
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (fenced?.[1]) {
     try {
@@ -41,7 +44,6 @@ function extractJsonFromText(text: string): unknown | null {
     }
   }
 
-  // Fallback: grab the first JSON object-ish region.
   const objMatch = raw.match(/\{[\s\S]*\}/);
   if (objMatch?.[0]) {
     try {
@@ -58,6 +60,44 @@ function sourceModels(value: unknown): AgentRole[] {
   if (!Array.isArray(value)) return [];
   const allowed = new Set<AgentRole>(["advocate", "critic", "steelman", "blindspot"]);
   return value.filter((item): item is AgentRole => typeof item === "string" && allowed.has(item as AgentRole));
+}
+
+export function mapRawJudgeAssumption(raw: RawJudgeAssumption): ScoredAssumption | null {
+  const validity = clampScore(raw.validity);
+  const consequence = clampScore(raw.consequence);
+  const novelty = clampScore(raw.novelty);
+  const computedComposite = validity * 0.3 + consequence * 0.4 + novelty * 0.3;
+  const compositeScore = raw.composite_score == null ? computedComposite : clampScore(raw.composite_score);
+  const models = sourceModels(raw.sourceModels ?? raw.models_that_flagged);
+  const text =
+    typeof raw.text === "string"
+      ? raw.text
+      : typeof raw.assumption_text === "string"
+        ? raw.assumption_text
+        : "";
+
+  if (!text.length) return null;
+
+  const taxonomy = parseTaxonomyFromRaw(raw as Record<string, unknown>);
+  const assumption: ScoredAssumption = {
+    text,
+    type:
+      typeof raw.type === "string"
+        ? raw.type
+        : typeof raw.assumption_type === "string"
+          ? raw.assumption_type
+          : "unknown",
+    domain: typeof raw.domain === "string" ? raw.domain : "general",
+    validity,
+    consequence,
+    novelty,
+    compositeScore,
+    sourceModels: models,
+    crossModelAgreement: clampScore(raw.cross_model_agreement ?? models.length / 4),
+    ...taxonomy,
+  };
+
+  return passesValidityJudgeFilter(assumption) ? assumption : null;
 }
 
 export async function judgeAssumptions(
@@ -95,24 +135,6 @@ export async function judgeAssumptions(
   const rawAssumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
 
   return rawAssumptions
-    .map((raw): ScoredAssumption => {
-      const validity = clampScore(raw.validity);
-      const consequence = clampScore(raw.consequence);
-      const novelty = clampScore(raw.novelty);
-      const computedComposite = validity * 0.3 + consequence * 0.4 + novelty * 0.3;
-      const compositeScore = raw.composite_score == null ? computedComposite : clampScore(raw.composite_score);
-      const models = sourceModels(raw.sourceModels ?? raw.models_that_flagged);
-      return {
-        text: typeof raw.text === "string" ? raw.text : typeof raw.assumption_text === "string" ? raw.assumption_text : "",
-        type: typeof raw.type === "string" ? raw.type : typeof raw.assumption_type === "string" ? raw.assumption_type : "unknown",
-        domain: typeof raw.domain === "string" ? raw.domain : "general",
-        validity,
-        consequence,
-        novelty,
-        compositeScore,
-        sourceModels: models,
-        crossModelAgreement: clampScore(raw.cross_model_agreement ?? models.length / 4),
-      };
-    })
-    .filter((assumption) => assumption.text.length > 0 && assumption.compositeScore >= 0.4);
+    .map((raw) => mapRawJudgeAssumption(raw))
+    .filter((assumption): assumption is ScoredAssumption => assumption !== null);
 }

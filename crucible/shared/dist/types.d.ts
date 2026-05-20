@@ -5,6 +5,8 @@ export interface AssumptionScores {
     depth: number;
     coverage: number;
     independence: number;
+    implicitness: number;
+    contextualGrounding: number;
 }
 export interface SteelmanScores {
     strength: number;
@@ -46,6 +48,8 @@ export interface FinalPipelineResult {
     assumption: string;
     steelman: string;
     synthesis: string;
+    negative_space?: string;
+    temporal_stack?: string;
 }
 /** Base shape for all outbound SSE payloads */
 export interface SseEnvelope<T = unknown> {

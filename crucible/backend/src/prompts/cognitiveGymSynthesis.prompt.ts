@@ -28,7 +28,16 @@ Return ONLY valid JSON with this exact shape (no markdown fences):
   "position_cracked": "string",
   "position_missed": "string",
   "overall_confidence": 0.0,
-  "overall_divergence": 0.0
+  "overall_divergence": 0.0,
+  "implicit_assumptions_surfaced": [
+    {
+      "assumption": "string",
+      "lens": "selection|identity|incentive|temporal|taboo|optionality|second_order",
+      "visibility": "explicit|unstated|implicit|contextual",
+      "why_implicit": "string",
+      "test": "string — how the user could falsify or stress-test this"
+    }
+  ]
 }
 
 - overall_confidence: 0-1, how confident you are in this synthesis given agent disagreement

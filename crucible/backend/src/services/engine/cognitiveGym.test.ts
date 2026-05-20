@@ -21,6 +21,15 @@ describe("cognitiveGym", () => {
         position_missed: "missed",
         overall_confidence: 0.8,
         overall_divergence: 0.4,
+        implicit_assumptions_surfaced: [
+          {
+            assumption: "Market stays liquid",
+            lens: "temporal",
+            visibility: "implicit",
+            why_implicit: "Never stated",
+            test: "Check bid-ask spreads",
+          },
+        ],
       }),
       0.2,
     );
@@ -30,6 +39,8 @@ describe("cognitiveGym", () => {
     expect(parsed.position_missed).toBe("missed");
     expect(parsed.overall_confidence).toBe(0.8);
     expect(parsed.overall_divergence).toBe(0.4);
+    expect(parsed.implicit_assumptions_surfaced).toHaveLength(1);
+    expect(parsed.implicit_assumptions_surfaced![0]!.test).toContain("bid-ask");
   });
 
   it("computes higher divergence when agent confidences diverge", () => {

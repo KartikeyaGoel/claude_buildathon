@@ -4,11 +4,15 @@ import { streamAgentCompletion } from "./streamCompletion.js";
 
 export async function runFramingInitial(params: {
   decisionText: string;
+  contextBundleText?: string;
   signal: AbortSignal;
   onChunk: (text: string) => void;
 }): Promise<string> {
-  const { decisionText, signal, onChunk } = params;
-  const messages: MessageParam[] = [{ role: "user", content: decisionText }];
+  const { decisionText, contextBundleText, signal, onChunk } = params;
+  const userContent = contextBundleText?.trim()
+    ? `${contextBundleText.trim()}\n\n## Decision\n${decisionText}`
+    : decisionText;
+  const messages: MessageParam[] = [{ role: "user", content: userContent }];
   return streamAgentCompletion({
     system: FRAMING_SYSTEM_PROMPT,
     messages,
@@ -22,12 +26,14 @@ export async function runFramingRevision(params: {
   decisionText: string;
   priorFraming: string;
   userFeedback: string;
+  contextBundleText?: string;
   signal: AbortSignal;
   onChunk: (text: string) => void;
 }): Promise<string> {
-  const { decisionText, priorFraming, userFeedback, signal, onChunk } = params;
+  const { decisionText, priorFraming, userFeedback, contextBundleText, signal, onChunk } = params;
+  const prefix = contextBundleText?.trim() ? `${contextBundleText.trim()}\n\n` : "";
   const messages: MessageParam[] = [
-    { role: "user", content: decisionText },
+    { role: "user", content: `${prefix}## Decision\n${decisionText}` },
     { role: "assistant", content: priorFraming },
     {
       role: "user",

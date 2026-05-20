@@ -32,6 +32,8 @@ const envSchema = z.object({
   CACHE_TTL_HOURS: z.coerce.number().int().positive().default(24),
   MAX_CONTENT_CHARS: z.coerce.number().int().positive().default(50_000),
   MAX_CONCURRENT_INTERROGATIONS: z.coerce.number().int().positive().default(3),
+  /** When set, POST /v1/users/register requires header X-Registration-Secret matching this value. */
+  REGISTRATION_SECRET: z.string().default(""),
   GCP_PROJECT_ID: z.string().default(""),
   GCP_REGION: z.string().default("us-central1"),
   GCP_CLOUD_SQL_INSTANCE: z.string().default(""),

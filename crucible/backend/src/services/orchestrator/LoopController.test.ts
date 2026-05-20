@@ -14,8 +14,22 @@ function makeGrade(passed: boolean, scores: AssumptionGrade["scores"]): Assumpti
   };
 }
 
+const PASSING_ASSUMPTION_SCORES: AssumptionGrade["scores"] = {
+  depth: 4,
+  coverage: 4,
+  independence: 3,
+  implicitness: 3,
+  contextualGrounding: 3,
+};
+
 function sumAssumption(g: AssumptionGrade): number {
-  return g.scores.depth + g.scores.coverage + g.scores.independence;
+  return (
+    g.scores.depth +
+    g.scores.coverage +
+    g.scores.independence +
+    g.scores.implicitness +
+    g.scores.contextualGrounding
+  );
 }
 
 describe("LoopController", () => {
@@ -25,7 +39,7 @@ describe("LoopController", () => {
     const runAgent = vi.fn().mockResolvedValueOnce("out1");
     const grade = vi
       .fn()
-      .mockResolvedValueOnce(makeGrade(true, { depth: 4, coverage: 4, independence: 3 }));
+      .mockResolvedValueOnce(makeGrade(true, PASSING_ASSUMPTION_SCORES));
 
     const result = await controller.runLoop<AssumptionGrade>({
       stage: "assumption",
@@ -56,9 +70,9 @@ describe("LoopController", () => {
     const grade = vi
       .fn()
       .mockResolvedValueOnce(
-        makeGrade(false, { depth: 2, coverage: 2, independence: 2 }),
+        makeGrade(false, { depth: 2, coverage: 2, independence: 2, implicitness: 2, contextualGrounding: 2 }),
       )
-      .mockResolvedValueOnce(makeGrade(true, { depth: 4, coverage: 4, independence: 3 }));
+      .mockResolvedValueOnce(makeGrade(true, PASSING_ASSUMPTION_SCORES));
 
     await controller.runLoop<AssumptionGrade>({
       stage: "assumption",
@@ -88,9 +102,15 @@ describe("LoopController", () => {
       .mockResolvedValueOnce("high");
     const grade = vi
       .fn()
-      .mockResolvedValueOnce(makeGrade(false, { depth: 1, coverage: 1, independence: 1 })) // sum 3
-      .mockResolvedValueOnce(makeGrade(false, { depth: 2, coverage: 2, independence: 2 })) // sum 6
-      .mockResolvedValueOnce(makeGrade(false, { depth: 2, coverage: 2, independence: 1 })); // sum 5
+      .mockResolvedValueOnce(
+        makeGrade(false, { depth: 1, coverage: 1, independence: 1, implicitness: 1, contextualGrounding: 1 }),
+      ) // sum 5
+      .mockResolvedValueOnce(
+        makeGrade(false, { depth: 2, coverage: 2, independence: 2, implicitness: 2, contextualGrounding: 2 }),
+      ) // sum 10
+      .mockResolvedValueOnce(
+        makeGrade(false, { depth: 2, coverage: 2, independence: 1, implicitness: 1, contextualGrounding: 1 }),
+      ); // sum 7
 
     const result = await controller.runLoop<AssumptionGrade>({
       stage: "assumption",
@@ -107,7 +127,7 @@ describe("LoopController", () => {
     expect(result.maxIterationsReached).toBe(true);
     expect(emit).toHaveBeenCalledWith("max_iterations_reached", {
       stage: "assumption",
-      bestScore: 6,
+      bestScore: 10,
     });
   });
 
@@ -119,7 +139,11 @@ describe("LoopController", () => {
       ac.abort();
       return "x";
     });
-    const grade = vi.fn().mockResolvedValue(makeGrade(false, { depth: 1, coverage: 1, independence: 1 }));
+    const grade = vi
+      .fn()
+      .mockResolvedValue(
+        makeGrade(false, { depth: 1, coverage: 1, independence: 1, implicitness: 1, contextualGrounding: 1 }),
+      );
 
     await expect(
       controller.runLoop<AssumptionGrade>({

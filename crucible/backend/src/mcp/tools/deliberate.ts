@@ -3,7 +3,7 @@ import { getMcpActingUser } from "../authContext.js";
 import { formatDeliberateResponse } from "../formatters.js";
 import { runDeliberation } from "../../services/engine/stagedGym.js";
 
-export const interrogateInputSchema = {
+export const deliberateInputSchema = {
   content: z.string().min(1),
   user_position: z.string().min(1, "user_position is required and cannot be empty"),
   domain: z.enum(["financial", "medical", "legal", "technical", "policy", "personal", "other"]).optional(),
@@ -11,8 +11,7 @@ export const interrogateInputSchema = {
   originating_model: z.enum(["claude", "gpt4o", "gemini", "perplexity", "mistral", "other"]).optional(),
 };
 
-/** @deprecated Use `deliberate` → `synthesize` → `commit` staged flow instead. */
-export async function interrogateTool(args: {
+export async function deliberateTool(args: {
   content: string;
   user_position: string;
   domain?: "financial" | "medical" | "legal" | "technical" | "policy" | "personal" | "other";
@@ -36,14 +35,7 @@ export async function interrogateTool(args: {
     originatingModel: args.originating_model ?? "other",
   });
 
-  const text = [
-    "DEPRECATED: `interrogate` now routes to staged deliberation only (no synthesis in this response).",
-    "Use `deliberate`, then `synthesize`, then `commit` for the full Cognitive Gym loop.",
-    "",
-    formatDeliberateResponse(response),
-  ].join("\n");
-
   return {
-    content: [{ type: "text" as const, text }],
+    content: [{ type: "text" as const, text: formatDeliberateResponse(response) }],
   };
 }

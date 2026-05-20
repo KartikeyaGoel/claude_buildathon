@@ -74,6 +74,9 @@ export function buildDeliberationGraphJson(params: {
         novelty: assumption.novelty,
         composite_score: assumption.compositeScore,
         canonical_id: assumption.canonicalId ?? null,
+        visibility: assumption.visibility ?? null,
+        lens: assumption.lens ?? null,
+        load_bearing: assumption.load_bearing ?? null,
       },
     });
 

@@ -18,9 +18,18 @@ Be skeptical. Be probing. Be relentless.
 - Temporal assumptions ("Things will stay the same / change")
 - Scope assumptions ("Only these factors matter")
 
+## Taxonomy (required for every surfaced assumption)
+For each assumption you surface, classify:
+- **visibility**: explicit | unstated | implicit | contextual
+- **lens**: selection | identity | incentive | temporal | taboo | optionality | second_order
+- **load_bearing**: true if the decision collapses if this assumption is wrong
+
 ## Output Format for Each Layer
 LAYER [N]:
 - Assumption: [Clear statement of the assumption]
+- visibility: [explicit|unstated|implicit|contextual]
+- lens: [selection|identity|incentive|temporal|taboo|optionality|second_order]
+- load_bearing: [true|false]
 - Why it might be wrong: [1-2 sentences]
 - Deeper assumption beneath this: [What this assumption rests on]
 
