@@ -1,5 +1,6 @@
 import { env } from "../../config/env.js";
 import { runAnthropic } from "../../providers/anthropic.js";
+import { GATE_TIMEOUT_MS, assertNotCancelled } from "../../utils/pipelineCancel.js";
 import { wrapInterrogationContent, GATE_SYSTEM_PROMPT } from "./prompts.js";
 import type { GateResult } from "./types.js";
 
@@ -24,9 +25,10 @@ export function stage1Gate(content: string): { passed: boolean; reason: string }
 
 export async function runGate(
   content: string,
-  signal: AbortSignal,
+  cancel?: AbortSignal,
   userPosition?: string,
 ): Promise<GateResult> {
+  assertNotCancelled(cancel);
   const stage1 = stage1Gate(content);
   if (!stage1.passed) {
     return {
@@ -42,8 +44,7 @@ export async function runGate(
     system: GATE_SYSTEM_PROMPT,
     user: wrapInterrogationContent(content, userPosition),
     model: env.ANTHROPIC_GATE_MODEL,
-    timeoutMs: 15_000,
-    signal,
+    timeoutMs: GATE_TIMEOUT_MS,
   });
 
   try {

@@ -21,9 +21,11 @@ interface IdRow extends QueryResultRow {
   id: string;
 }
 
+const CACHE_KEY_VERSION = "interrogation:v2";
+
 export function hashInterrogationContent(content: string, userPosition?: string): string {
   const positionSuffix = userPosition?.trim() ? `\n\n__user_position__\n${userPosition.trim()}` : "";
-  return contentHash(`${content}${positionSuffix}`);
+  return contentHash(`${CACHE_KEY_VERSION}\n\n${content}${positionSuffix}`);
 }
 
 export async function getCachedResponse(

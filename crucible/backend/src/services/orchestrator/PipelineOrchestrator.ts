@@ -200,7 +200,7 @@ export class PipelineOrchestrator {
           content: session.decisionText,
           framingText: framing,
           contextBundleText: session.contextBundleText,
-          signal: session.abortController.signal,
+          cancel: session.abortController.signal,
         }).catch((e) => {
           console.warn("[pipeline] negative-space pass failed", e);
           return "";
@@ -215,7 +215,7 @@ export class PipelineOrchestrator {
         content: session.decisionText,
         framingText: framing,
         assumptionText: assumptionResult.text,
-        signal: session.abortController.signal,
+        cancel: session.abortController.signal,
       }).catch((e) => {
         console.warn("[pipeline] temporal stack failed", e);
         return { text: "", stacks: [] };

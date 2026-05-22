@@ -1,0 +1,12 @@
+{
+  "folders": [
+    { "path": ".", "name": "repo root" },
+    { "path": "crucible/backend", "name": "crucible-backend" },
+    { "path": "crucible/frontend", "name": "crucible-frontend" },
+    { "path": "crucible/shared", "name": "crucible-shared" }
+  ],
+  "settings": {
+    "npm.packageManager": "npm",
+    "npm.autoDetect": "on"
+  }
+}

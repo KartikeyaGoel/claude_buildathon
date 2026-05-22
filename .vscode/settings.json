@@ -1,0 +1,5 @@
+{
+  "npm.packageManager": "npm",
+  "npm.autoDetect": "on",
+  "npm.exclude": "**/node_modules/**"
+}

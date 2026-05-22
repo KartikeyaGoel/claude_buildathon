@@ -1,5 +1,7 @@
+import { env } from "../../config/env.js";
 import { runAnthropic } from "../../providers/anthropic.js";
 import { NEGATIVE_SPACE_SYSTEM_PROMPT } from "../../prompts/negativeSpace.prompt.js";
+import { assertNotCancelled, MODEL_TIMEOUT_MS } from "../../utils/pipelineCancel.js";
 import { wrapInterrogationContent } from "./prompts.js";
 
 export async function runNegativeSpacePass(params: {
@@ -7,8 +9,9 @@ export async function runNegativeSpacePass(params: {
   framingText: string;
   userPosition?: string;
   contextBundleText?: string;
-  signal: AbortSignal;
+  cancel?: AbortSignal;
 }): Promise<string> {
+  assertNotCancelled(params.cancel);
   const sections = [
     "## Submitted content",
     params.content,
@@ -31,8 +34,8 @@ export async function runNegativeSpacePass(params: {
     role: "blindspot",
     system: NEGATIVE_SPACE_SYSTEM_PROMPT,
     user: wrapInterrogationContent(sections.join("\n")),
-    timeoutMs: 45_000,
-    signal: params.signal,
+    model: env.ANTHROPIC_MODEL,
+    timeoutMs: MODEL_TIMEOUT_MS,
   });
 
   return result.text;

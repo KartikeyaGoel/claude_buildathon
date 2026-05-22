@@ -8,6 +8,7 @@ import {
   isNoPriorPosition,
   parseCognitiveGymSynthesis,
 } from "./cognitiveGym.js";
+import { assertNotCancelled, MODEL_TIMEOUT_MS } from "../../utils/pipelineCancel.js";
 import type { CognitiveGymSynthesis, ScoredAssumption } from "./types.js";
 
 function buildAgentOutputText(agentOutputs: ProviderResult[]): string {
@@ -109,8 +110,9 @@ export async function synthesizeFinalRecommendation(params: {
   temporalStackText?: string;
   contextBundleText?: string;
   userJudgment?: string;
-  signal: AbortSignal;
+  cancel?: AbortSignal;
 }): Promise<string> {
+  assertNotCancelled(params.cancel);
   const agentOutputText = buildAgentOutputText(params.agentOutputs ?? []);
   const useCognitiveGym = Boolean(params.userPosition?.trim());
 
@@ -133,8 +135,7 @@ export async function synthesizeFinalRecommendation(params: {
       system: COGNITIVE_GYM_SYNTHESIS_SYSTEM_PROMPT,
       user,
       model: env.MODEL_ID,
-      timeoutMs: 60_000,
-      signal: params.signal,
+      timeoutMs: MODEL_TIMEOUT_MS,
     });
 
     return result.text;
@@ -154,8 +155,7 @@ export async function synthesizeFinalRecommendation(params: {
     system: SYNTHESIS_SYSTEM_PROMPT,
     user,
     model: env.MODEL_ID,
-    timeoutMs: 60_000,
-    signal: params.signal,
+    timeoutMs: MODEL_TIMEOUT_MS,
   });
 
   return result.text;
@@ -173,8 +173,9 @@ export async function synthesizeCognitiveGym(params: {
   contextBundleText?: string;
   userJudgment?: string;
   fallbackDivergence: number;
-  signal: AbortSignal;
+  cancel?: AbortSignal;
 }): Promise<CognitiveGymSynthesis> {
+  assertNotCancelled(params.cancel);
   const raw = await synthesizeFinalRecommendation({
     decisionText: params.decisionText,
     framingText: params.framingText,
@@ -187,7 +188,7 @@ export async function synthesizeCognitiveGym(params: {
     temporalStackText: params.temporalStackText,
     contextBundleText: params.contextBundleText,
     userJudgment: params.userJudgment,
-    signal: params.signal,
+    cancel: params.cancel,
   });
 
   return parseCognitiveGymSynthesis(raw, params.fallbackDivergence);

@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
-import { anySignal, timeoutSignal } from "../utils/abort.js";
+import { timeoutSignal } from "../utils/abort.js";
+import { modelTimeoutMs } from "../utils/pipelineCancel.js";
 import { withProviderRetry } from "./retry.js";
 import type { Provider, ProviderCall, ProviderResult } from "./types.js";
 
@@ -15,9 +16,12 @@ export const runPerplexity: Provider = async (call: ProviderCall): Promise<Provi
   if (!env.PERPLEXITY_API_KEY) throw new Error("PERPLEXITY_API_KEY is required for Perplexity provider");
 
   const started = Date.now();
-  const signal = anySignal([call.signal, timeoutSignal(call.timeoutMs)]);
+  const timeoutMs = modelTimeoutMs(call.role, call.timeoutMs);
+  const signal = timeoutSignal(timeoutMs);
 
-  const json = await withProviderRetry(
+  let json;
+  try {
+    json = await withProviderRetry(
     `perplexity:${call.role}`,
     async () => {
       const response = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -47,12 +51,18 @@ export const runPerplexity: Provider = async (call: ProviderCall): Promise<Provi
     },
     signal,
   );
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error(`Model call timed out after ${timeoutMs}ms (perplexity:${call.role})`);
+    }
+    throw error;
+  }
 
   return {
     role: call.role,
     text: json.choices?.[0]?.message?.content ?? "",
     model: env.PERPLEXITY_MODEL,
     latencyMs: Date.now() - started,
-    timedOut: signal.aborted && !call.signal.aborted,
+    timedOut: signal.aborted,
   };
 };

@@ -1,6 +1,7 @@
 import { runAnthropic } from "../../providers/anthropic.js";
 import { env } from "../../config/env.js";
 import { MCP_FRAMING_SYSTEM_PROMPT } from "../../prompts/mcpFraming.prompt.js";
+import { assertNotCancelled, MODEL_TIMEOUT_MS } from "../../utils/pipelineCancel.js";
 import { formatContextBundleForPrompt } from "./contextBundle.js";
 import { wrapInterrogationContent } from "./prompts.js";
 import type { ContextBundle } from "./types.js";
@@ -9,8 +10,9 @@ export async function runLightweightFraming(params: {
   content: string;
   userPosition?: string;
   contextBundle?: ContextBundle;
-  signal: AbortSignal;
+  cancel?: AbortSignal;
 }): Promise<string> {
+  assertNotCancelled(params.cancel);
   const sections = ["## Submitted content", params.content];
 
   const bundleText = params.contextBundle ? formatContextBundleForPrompt(params.contextBundle) : "";
@@ -27,8 +29,7 @@ export async function runLightweightFraming(params: {
     system: MCP_FRAMING_SYSTEM_PROMPT,
     user: wrapInterrogationContent(sections.join("\n")),
     model: env.MODEL_ID,
-    timeoutMs: 30_000,
-    signal: params.signal,
+    timeoutMs: MODEL_TIMEOUT_MS,
   });
 
   return result.text.trim() || "Framing agent returned empty output.";

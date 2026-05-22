@@ -7,7 +7,6 @@ const execFileAsync = promisify(execFile);
 const SECRET_NAMES = [
   "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
-  "GOOGLE_GENERATIVE_AI_API_KEY",
   "PERPLEXITY_API_KEY",
   "WEBHOOK_HMAC_SECRET",
   "ADMIN_API_KEY",

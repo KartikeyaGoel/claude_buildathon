@@ -2,65 +2,49 @@ import { runAnthropic } from "../../providers/anthropic.js";
 import { env } from "../../config/env.js";
 import { ASSUMPTION_SYSTEM_PROMPT } from "../../prompts/assumption.prompt.js";
 import type { ProviderResult } from "../../providers/types.js";
+import { assertNotCancelled, MODEL_TIMEOUT_MS } from "../../utils/pipelineCancel.js";
 import { formatContextBundleForPrompt } from "./contextBundle.js";
 import { wrapInterrogationContent } from "./prompts.js";
 import type { ContextBundle } from "./types.js";
-
-const MAX_EXCAVATION_ITERATIONS = 2;
 
 export async function runLayeredAssumptionExcavation(params: {
   content: string;
   framingText: string;
   userPosition?: string;
   contextBundle?: ContextBundle;
-  signal: AbortSignal;
+  cancel?: AbortSignal;
 }): Promise<ProviderResult> {
+  assertNotCancelled(params.cancel);
   const bundleText = params.contextBundle ? formatContextBundleForPrompt(params.contextBundle) : "";
-  let previousOutput: string | null = null;
-  let lastResult: ProviderResult | null = null;
 
-  for (let iteration = 1; iteration <= MAX_EXCAVATION_ITERATIONS; iteration++) {
-    const sections = [
-      "## Decision (submitted content)",
-      params.content,
-      "",
-      "## Framing",
-      params.framingText,
-    ];
+  const sections = [
+    "## Decision (submitted content)",
+    params.content,
+    "",
+    "## Framing",
+    params.framingText,
+  ];
 
-    if (bundleText) {
-      sections.push("", bundleText);
-    }
-
-    if (params.userPosition?.trim()) {
-      sections.push("", "## User position", params.userPosition.trim());
-    }
-
-    if (iteration > 1 && previousOutput) {
-      sections.push(
-        "",
-        "## Previous excavation output",
-        previousOutput,
-        "",
-        "## Task",
-        "Deepen layered excavation; surface implicit bedrock assumptions with full taxonomy tags.",
-      );
-    } else {
-      sections.push("", "## Task", "Perform layered assumption excavation per your system instructions.");
-    }
-
-    const result = await runAnthropic({
-      role: "critic",
-      system: ASSUMPTION_SYSTEM_PROMPT,
-      user: wrapInterrogationContent(sections.join("\n")),
-      model: env.MODEL_ID,
-      timeoutMs: 60_000,
-      signal: params.signal,
-    });
-
-    previousOutput = result.text;
-    lastResult = result;
+  if (bundleText) {
+    sections.push("", bundleText);
   }
 
-  return lastResult!;
+  if (params.userPosition?.trim()) {
+    sections.push("", "## User position", params.userPosition.trim());
+  }
+
+  sections.push("", "## Task", "Perform layered assumption excavation per your system instructions.");
+
+  const startedAt = Date.now();
+  const result = await runAnthropic({
+    role: "critic",
+    system: ASSUMPTION_SYSTEM_PROMPT,
+    user: wrapInterrogationContent(sections.join("\n")),
+    model: env.EXCAVATION_MODEL,
+    timeoutMs: MODEL_TIMEOUT_MS,
+  });
+  // MCP stdio uses stdout for JSON-RPC only — log to stderr.
+  console.error(`[layeredExcavation] latency_ms=${Date.now() - startedAt}`);
+
+  return result;
 }

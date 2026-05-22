@@ -7,7 +7,6 @@ loadDotenv();
 const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
   OPENAI_API_KEY: z.string().default(""),
-  GOOGLE_GENERATIVE_AI_API_KEY: z.string().default(""),
   PERPLEXITY_API_KEY: z.string().default(""),
   DATABASE_URL: z.string().min(1).default("postgresql://crucible:crucible_dev@localhost:5432/crucible"),
   PORT: z.coerce.number().int().positive().default(3001),
@@ -16,12 +15,17 @@ const envSchema = z.object({
   PUBLIC_API_URL: z.string().url().default("http://localhost:3001"),
   /** Extra Host header values allowed for Streamable HTTP MCP (comma-separated), e.g. custom domain */
   MCP_ALLOWED_HOSTS: z.string().default(""),
+  /** Sonnet-class: synthesis, MCP framing. */
   MODEL_ID: z.string().min(1).default("claude-sonnet-4-5"),
+  /** Layered assumption excavation — one tier below MODEL_ID for latency. */
+  EXCAVATION_MODEL: z.string().min(1).default("claude-sonnet-4-0"),
+  /** Sonnet-class Anthropic: advocate, steelman, validity judge, negative-space. */
   ANTHROPIC_MODEL: z.string().min(1).default("claude-sonnet-4-5"),
+  /** Fast Anthropic: temporal stack only. */
+  TEMPORAL_MODEL: z.string().min(1).default("claude-haiku-4-5"),
   ANTHROPIC_GATE_MODEL: z.string().min(1).default("claude-haiku-4-5"),
-  OPENAI_MODEL: z.string().min(1).default("gpt-5"),
-  GEMINI_MODEL: z.string().min(1).default("gemini-1.5-pro"),
-  PERPLEXITY_MODEL: z.string().min(1).default("sonar-pro"),
+  OPENAI_MODEL: z.string().min(1).default("gpt-4o-mini"),
+  PERPLEXITY_MODEL: z.string().min(1).default("sonar"),
   OPENAI_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
   MAX_LOOP_ITERATIONS: z.coerce.number().int().positive().max(20).default(4),
   SESSION_TTL_MINUTES: z.coerce.number().int().positive().default(30),

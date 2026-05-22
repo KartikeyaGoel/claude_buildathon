@@ -17,12 +17,7 @@ import {
 import type { InterrogationResponse, PipelineAmplificationMeta, RunInterrogationInput } from "./types.js";
 import type { DeliberationOnlyPayload } from "./types.js";
 import { buildDeliberationOnlyPayload } from "./cognitiveGym.js";
-
-function makeController(signal?: AbortSignal): AbortController {
-  const controller = new AbortController();
-  signal?.addEventListener("abort", () => controller.abort(), { once: true });
-  return controller;
-}
+import { assertNotCancelled } from "../../utils/pipelineCancel.js";
 
 function assertUserPositionForMcp(source: RunInterrogationInput["source"], userPosition?: string): string | undefined {
   const trimmed = userPosition?.trim();
@@ -39,84 +34,102 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
   assertContentLength(input.content);
 
   const userPosition = assertUserPositionForMcp(input.source, input.userPosition);
-  const controller = makeController(input.signal);
+  const cancel = input.signal;
   const domain = input.domain ?? "other";
   const originatingModel = input.originatingModel ?? "other";
   const useMcpPipeline = input.source === "mcp";
 
-  await detectTier2Followthrough(input.user, input.content, controller.signal);
+  assertNotCancelled(cancel);
+  await detectTier2Followthrough(input.user, input.content, cancel);
   const cached = await getCachedResponse(input.content, domain, originatingModel, userPosition);
   if (cached) {
-    const { interrogationId, traceId } = await recordCacheHit({
-      user: input.user,
-      content: input.content,
-      domain,
-      originatingModel,
-      sessionId: input.sessionId,
-      source: input.source,
-      response: cached,
-      userPosition,
-    });
-    if (cached.synthesis_text || cached.cognitive_gym) {
-      return {
-        ...cached,
-        interrogation_id: interrogationId,
-        trace_id: traceId,
-      };
-    }
-
-    const steelmanText =
-      cached.metadata.model_outputs.find((m) => m.role === "steelman")?.role != null
-        ? "Raw steelman output unavailable because this cache row predates persisted synthesis_text."
-        : "STEELMAN stage not available in this cached run.";
-
-    if (userPosition) {
-      const synthesis = await synthesizeCognitiveGym({
-        decisionText: input.content,
+    if (input.deferSynthesis && (!cached.deliberation || !cached.staged_meta)) {
+      // MCP stdio uses stdout for JSON-RPC only — log to stderr.
+      console.error("[engine] cache entry cannot satisfy staged deliberation; running full pipeline");
+    } else {
+      const { interrogationId, traceId } = await recordCacheHit({
+        user: input.user,
+        content: input.content,
+        domain,
+        originatingModel,
+        sessionId: input.sessionId,
+        source: input.source,
+        response: cached,
         userPosition,
+      });
+
+      if (input.deferSynthesis && cached.deliberation && cached.staged_meta) {
+        return {
+          ...cached,
+          interrogation_id: interrogationId,
+          trace_id: traceId,
+          deliberation: cached.deliberation,
+          staged_meta: cached.staged_meta,
+        };
+      }
+
+      if (cached.synthesis_text || cached.cognitive_gym) {
+        return {
+          ...cached,
+          interrogation_id: interrogationId,
+          trace_id: traceId,
+        };
+      }
+
+      const steelmanText =
+        cached.metadata.model_outputs.find((m) => m.role === "steelman")?.role != null
+          ? "Raw steelman output unavailable because this cache row predates persisted synthesis_text."
+          : "STEELMAN stage not available in this cached run.";
+
+      if (userPosition) {
+        const synthesis = await synthesizeCognitiveGym({
+          decisionText: input.content,
+          userPosition,
+          framingText:
+            "Framing heuristics (gate reasoning) not persisted in cache; synthesizing from scored assumptions only.",
+          assumptions: cached.assumptions,
+          steelmanText,
+          agentOutputs: [],
+          fallbackDivergence: cached.divergence_score,
+          cancel,
+        });
+
+        return {
+          ...cached,
+          synthesis_text: formatSynthesisText(synthesis),
+          cognitive_gym: buildCognitiveGymPayload({
+            userPosition,
+            framingText:
+              "Framing heuristics (gate reasoning) not persisted in cache; synthesizing from scored assumptions only.",
+            agentResults: [],
+            synthesis,
+          }),
+          interrogation_id: interrogationId,
+          trace_id: traceId,
+        };
+      }
+
+      const synthesisText = await synthesizeFinalRecommendation({
+        decisionText: input.content,
         framingText:
           "Framing heuristics (gate reasoning) not persisted in cache; synthesizing from scored assumptions only.",
         assumptions: cached.assumptions,
         steelmanText,
         agentOutputs: [],
-        fallbackDivergence: cached.divergence_score,
-        signal: controller.signal,
+        cancel,
       });
 
       return {
         ...cached,
-        synthesis_text: formatSynthesisText(synthesis),
-        cognitive_gym: buildCognitiveGymPayload({
-          userPosition,
-          framingText:
-            "Framing heuristics (gate reasoning) not persisted in cache; synthesizing from scored assumptions only.",
-          agentResults: [],
-          synthesis,
-        }),
+        synthesis_text: synthesisText,
         interrogation_id: interrogationId,
         trace_id: traceId,
       };
     }
-
-    const synthesisText = await synthesizeFinalRecommendation({
-      decisionText: input.content,
-      framingText:
-        "Framing heuristics (gate reasoning) not persisted in cache; synthesizing from scored assumptions only.",
-      assumptions: cached.assumptions,
-      steelmanText,
-      agentOutputs: [],
-      signal: controller.signal,
-    });
-
-    return {
-      ...cached,
-      synthesis_text: synthesisText,
-      interrogation_id: interrogationId,
-      trace_id: traceId,
-    };
   }
 
-  const gate = await runGate(input.content, controller.signal, userPosition);
+  assertNotCancelled(cancel);
+  const gate = await runGate(input.content, cancel, userPosition);
   if (!gate.passed) {
     const error = new Error(gate.reason);
     (error as Error & { code: string; statusCode: number }).code = "GATE_BLOCKED";
@@ -128,29 +141,31 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
     input.contextBundle ?? (await loadContextBundle(input.user.id));
   const contextBundleText = formatContextBundleForPrompt(contextBundle);
 
-  const framingText = useMcpPipeline
-    ? await runLightweightFraming({
-        content: input.content,
-        userPosition,
-        contextBundle,
-        signal: controller.signal,
-      })
-    : gate.reason;
-
   const amplification: PipelineAmplificationMeta = {
     context_bundle_loaded: contextBundleText.length > 0,
     mcp_framing: useMcpPipeline,
     layered_excavation: useMcpPipeline,
   };
 
+  assertNotCancelled(cancel);
+
+  const framingText = useMcpPipeline
+    ? await runLightweightFraming({
+        content: input.content,
+        userPosition,
+        contextBundle,
+        cancel,
+      })
+    : gate.reason;
+
   const [agents, negativeSpaceText, layeredExcavation] = await Promise.all([
-    runParallelAgents(input.content, controller.signal, userPosition),
+    runParallelAgents(input.content, userPosition),
     runNegativeSpacePass({
       content: input.content,
       framingText,
       userPosition,
       contextBundleText,
-      signal: controller.signal,
+      cancel,
     }),
     useMcpPipeline
       ? runLayeredAssumptionExcavation({
@@ -158,7 +173,7 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
           framingText,
           userPosition,
           contextBundle,
-          signal: controller.signal,
+          cancel,
         })
       : Promise.resolve(null),
   ]);
@@ -166,17 +181,28 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
   amplification.negative_space_output = negativeSpaceText;
 
   const judgeInputs = [...agents.results];
+  if (negativeSpaceText.trim()) {
+    judgeInputs.push({
+      role: "blindspot",
+      model: "negative-space",
+      text: `NEGATIVE SPACE PASS:\n${negativeSpaceText}`,
+      latencyMs: 0,
+      timedOut: false,
+    });
+  }
   if (layeredExcavation) {
     judgeInputs.push(layeredExcavation);
   }
 
-  const assumptions = await judgeAssumptions(judgeInputs, controller.signal, userPosition);
+  assertNotCancelled(cancel);
+  const assumptions = await judgeAssumptions(judgeInputs, cancel, userPosition);
 
+  assertNotCancelled(cancel);
   const { text: temporalStackText, stacks: temporalStacks } = await runTemporalStackPass({
     content: input.content,
     framingText,
     assumptions,
-    signal: controller.signal,
+    cancel,
   });
   amplification.temporal_stack = temporalStacks;
 
@@ -216,7 +242,7 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
       temporalStackText,
       contextBundleText,
       fallbackDivergence: preliminaryDivergence,
-      signal: controller.signal,
+      cancel,
     });
     synthesisText = formatSynthesisText(synthesis);
     cognitiveGym = buildCognitiveGymPayload({
@@ -238,7 +264,7 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
       contextBundleText,
       negativeSpaceText,
       temporalStackText,
-      signal: controller.signal,
+      cancel,
     });
   }
 
@@ -267,11 +293,11 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
       preliminary_divergence: preliminaryDivergence,
       defer_synthesis: Boolean(input.deferSynthesis),
     },
-    signal: controller.signal,
+    cancel,
   });
 
   if (input.deferSynthesis && deliberationOnly) {
-    return {
+    const stagedResponse = {
       ...response,
       deliberation: deliberationOnly,
       staged_meta: {
@@ -290,6 +316,8 @@ export async function runInterrogation(input: RunInterrogationInput): Promise<In
         })),
       },
     };
+    await putCachedResponse(input.content, domain, originatingModel, response.trace_id, stagedResponse, userPosition);
+    return stagedResponse;
   }
 
   await putCachedResponse(input.content, domain, originatingModel, response.trace_id, response, userPosition);

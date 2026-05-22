@@ -151,7 +151,7 @@ export async function runGymSynthesis(input: {
     contextBundleText: snap.context_bundle_text,
     userJudgment: judgment,
     fallbackDivergence: snap.preliminary_divergence,
-    signal: makeSignal(input.signal),
+    cancel: makeSignal(input.signal),
   });
 
   await recordUserJudgment({

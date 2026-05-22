@@ -1,6 +1,8 @@
+import { env } from "../../config/env.js";
 import { runAnthropic } from "../../providers/anthropic.js";
 import { TEMPORAL_STACK_SYSTEM_PROMPT } from "../../prompts/temporalStack.prompt.js";
 import type { ScoredAssumption, TemporalStackResult } from "./types.js";
+import { assertNotCancelled, MODEL_TIMEOUT_MS } from "../../utils/pipelineCancel.js";
 import { wrapInterrogationContent } from "./prompts.js";
 
 function extractJsonFromText(text: string): unknown | null {
@@ -98,8 +100,10 @@ export async function runTemporalStackFromText(params: {
   content: string;
   framingText: string;
   assumptionText: string;
-  signal: AbortSignal;
+  cancel?: AbortSignal;
 }): Promise<{ text: string; stacks: TemporalStackResult[] }> {
+  assertNotCancelled(params.cancel);
+
   const pseudoAssumptions: ScoredAssumption[] = params.assumptionText
     .split(/\n+/)
     .map((line) => line.replace(/^[-*]\s*/, "").trim())
@@ -127,7 +131,7 @@ export async function runTemporalStackFromText(params: {
     content: params.content,
     framingText: params.framingText,
     assumptions: pseudoAssumptions,
-    signal: params.signal,
+    cancel: params.cancel,
   });
 }
 
@@ -135,8 +139,10 @@ export async function runTemporalStackPass(params: {
   content: string;
   framingText: string;
   assumptions: ScoredAssumption[];
-  signal: AbortSignal;
+  cancel?: AbortSignal;
 }): Promise<{ text: string; stacks: TemporalStackResult[] }> {
+  assertNotCancelled(params.cancel);
+
   const top = params.assumptions
     .slice()
     .sort((a, b) => b.compositeScore - a.compositeScore)
@@ -164,8 +170,8 @@ export async function runTemporalStackPass(params: {
     role: "critic",
     system: TEMPORAL_STACK_SYSTEM_PROMPT,
     user,
-    timeoutMs: 45_000,
-    signal: params.signal,
+    model: env.TEMPORAL_MODEL,
+    timeoutMs: MODEL_TIMEOUT_MS,
   });
 
   const stacks = parseTemporalStackResponse(result.text, top);

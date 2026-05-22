@@ -55,13 +55,13 @@ export async function composeAndPersist(params: {
   cognitiveGym?: CognitiveGymPayload;
   framingText?: string;
   pipelineAmplification?: PipelineAmplificationMeta;
-  signal?: AbortSignal;
+  cancel?: AbortSignal;
 }): Promise<InterrogationResponse> {
   const enriched = params.assumptions.map(enrichAssumption);
   const canonicalized = await Promise.all(
     enriched.map(async (assumption) => {
       try {
-        const result = await canonicalizeAssumption(assumption, params.signal);
+        const result = await canonicalizeAssumption(assumption, params.cancel);
         return { assumption: { ...assumption, canonicalId: result.canonicalId }, embedding: result.embedding };
       } catch (error) {
         console.warn("[engine] canonicalization skipped", error);

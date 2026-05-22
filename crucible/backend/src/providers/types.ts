@@ -5,8 +5,8 @@ export interface ProviderCall {
   system: string;
   user: string;
   model?: string;
-  timeoutMs: number;
-  signal: AbortSignal;
+  timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface ProviderResult {

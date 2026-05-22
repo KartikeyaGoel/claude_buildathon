@@ -1,6 +1,8 @@
+import { env } from "../../config/env.js";
 import { runAnthropic } from "../../providers/anthropic.js";
 import type { AgentRole, ProviderResult } from "../../providers/types.js";
 import { parseTaxonomyFromRaw, passesValidityJudgeFilter } from "./assumptionTaxonomy.js";
+import { assertNotCancelled, MODEL_TIMEOUT_MS } from "../../utils/pipelineCancel.js";
 import { VALIDITY_JUDGE_SYSTEM_PROMPT, wrapInterrogationContent } from "./prompts.js";
 import type { ScoredAssumption } from "./types.js";
 
@@ -102,9 +104,10 @@ export function mapRawJudgeAssumption(raw: RawJudgeAssumption): ScoredAssumption
 
 export async function judgeAssumptions(
   agentOutputs: ProviderResult[],
-  signal: AbortSignal,
+  cancel?: AbortSignal,
   userPosition?: string,
 ): Promise<ScoredAssumption[]> {
+  assertNotCancelled(cancel);
   const payload = JSON.stringify(
     agentOutputs.map((output) => ({
       role: output.role,
@@ -121,8 +124,8 @@ export async function judgeAssumptions(
     role: "critic",
     system: VALIDITY_JUDGE_SYSTEM_PROMPT,
     user: wrapInterrogationContent(wrappedPayload),
-    timeoutMs: 30_000,
-    signal,
+    model: env.ANTHROPIC_MODEL,
+    timeoutMs: MODEL_TIMEOUT_MS,
   });
 
   const extracted = extractJsonFromText(result.text);

@@ -1,15 +1,13 @@
 import { runAnthropic, runOpenAI, runPerplexity } from "../../providers/index.js";
 import { errorText } from "../../providers/retry.js";
 import type { AgentRole, Provider, ProviderFailure, ProviderResult } from "../../providers/types.js";
+import { modelTimeoutMs } from "../../utils/pipelineCancel.js";
 import { roleSystemPrompt, wrapInterrogationContent } from "./prompts.js";
 import { env } from "../../config/env.js";
 
 function enabledProviders(): Array<[AgentRole, Provider]> {
-  // Only enable providers that have credentials configured.
-  // This prevents local beta runs from hard-failing when some keys are missing.
   const entries: Array<[AgentRole, Provider]> = [];
 
-  // Anthropic is required by envSchema, so keep core roles available without Gemini.
   entries.push(["advocate", runAnthropic]);
   entries.push(["steelman", runAnthropic]);
 
@@ -17,14 +15,6 @@ function enabledProviders(): Array<[AgentRole, Provider]> {
   if (env.PERPLEXITY_API_KEY) entries.push(["blindspot", runPerplexity]);
 
   return entries;
-}
-
-function makeAbortController(signal?: AbortSignal, timeoutMs = 30_000): AbortController {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  signal?.addEventListener("abort", () => controller.abort(), { once: true });
-  controller.signal.addEventListener("abort", () => clearTimeout(timeout), { once: true });
-  return controller;
 }
 
 export interface ParallelAgentResult {
@@ -35,10 +25,8 @@ export interface ParallelAgentResult {
 
 export async function runParallelAgents(
   content: string,
-  signal?: AbortSignal,
   userPosition?: string,
 ): Promise<ParallelAgentResult> {
-  const controller = makeAbortController(signal);
   const user = wrapInterrogationContent(content, userPosition);
   const providers = enabledProviders();
 
@@ -48,8 +36,8 @@ export async function runParallelAgents(
         role,
         system: roleSystemPrompt(role),
         user,
-        timeoutMs: 30_000,
-        signal: controller.signal,
+        ...(provider === runAnthropic ? { model: env.ANTHROPIC_MODEL } : {}),
+        timeoutMs: modelTimeoutMs(role),
       }),
     ),
   );
